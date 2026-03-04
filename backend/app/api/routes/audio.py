@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # app/api/routes/audio.py
 
-from fastapi import APIRouter, Depends, HTTPException
+import shutil
+import uuid
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.api.middleware.auth import verify_api_key
+from config.config import settings
 from app.api.models.audio import (
     TranscriptionRequest,
     TranscriptionResponse,
@@ -14,6 +18,24 @@ from app.api.models.audio import (
 from app.core.jobs.transcription import extract_and_transcribe, correct_french
 
 router = APIRouter(prefix="/audio", tags=["audio"])
+
+
+@router.post("/upload")
+async def upload_audio(
+    file: UploadFile = File(...),
+    _: str = Depends(verify_api_key)
+):
+    """
+    Upload a pre-extracted audio file for transcription.
+    Returns the server-side path to pass in /audio/transcription with preextracted=true.
+    """
+    ext = Path(file.filename or "audio.wav").suffix or ".wav"
+    dest_path = settings.temp_dir / f"upload_{uuid.uuid4().hex}{ext}"
+
+    with dest_path.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    return {"server_path": str(dest_path)}
 
 
 @router.post("/transcription", response_model=TranscriptionResponse)

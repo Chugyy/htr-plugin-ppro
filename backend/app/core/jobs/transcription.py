@@ -39,13 +39,19 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
         clips_info: List[ClipTimelineInfo] = []
 
         for clip in clips:
-            audio_path = await extract_audio_segment(
-                source_path=clip.source_file_path,
-                in_point=clip.source_in_point,
-                out_point=clip.source_out_point,
-                clip_name=clip.clip_name
-            )
-            created_files.append(audio_path)
+            if clip.preextracted:
+                audio_path = Path(clip.source_file_path)
+                if not audio_path.exists():
+                    raise FileNotFoundError(f"Pre-extracted audio not found: {audio_path}")
+                created_files.append(audio_path)  # cleanup uploaded file after transcription
+            else:
+                audio_path = await extract_audio_segment(
+                    source_path=clip.source_file_path,
+                    in_point=clip.source_in_point,
+                    out_point=clip.source_out_point,
+                    clip_name=clip.clip_name
+                )
+                created_files.append(audio_path)
 
             clips_info.append(ClipTimelineInfo(
                 audio_path=audio_path,

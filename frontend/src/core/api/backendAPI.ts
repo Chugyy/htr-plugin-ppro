@@ -51,44 +51,90 @@ export class BackendClient {
     const apiKey = authService.get();
     if (!apiKey) throw new Error("Not authenticated");
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    };
-
     console.log(`[BackendClient] ${method} ${url}`);
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+      xhr.timeout = timeout;
 
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            console.log(`[BackendClient] Response:`, data);
+            resolve(data);
+          } catch {
+            reject(new Error('Invalid JSON response'));
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(`HTTP ${xhr.status}: ${error.detail || 'Request failed'}`));
+          } catch {
+            reject(new Error(`HTTP ${xhr.status}: Request failed`));
+          }
+        }
+      };
 
-      clearTimeout(timeoutId);
+      xhr.onerror = () => {
+        console.error(`[BackendClient] Request failed: ${method} ${url}`);
+        reject(new Error('Network error'));
+      };
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(`HTTP ${response.status}: ${error.detail || "Request failed"}`);
-      }
+      xhr.ontimeout = () => {
+        console.error(`[BackendClient] Request timeout: ${method} ${url}`);
+        reject(new Error('Request timeout'));
+      };
 
-      const data = await response.json();
-      console.log(`[BackendClient] Response:`, data);
-      return data;
-    } catch (error) {
-      console.error(`[BackendClient] Request failed: ${method} ${url}`, error);
-      throw error;
-    }
+      xhr.send(body ? JSON.stringify(body) : null);
+    });
   }
 
   /**
-   * Generate transcription from audio clips
+   * Upload a pre-extracted local audio file to the backend.
+   * Returns the server-side path for use in generateTranscription().
    */
-  async generateTranscription(clips: AudioClipInfo[]): Promise<TranscriptionResponse> {
+  async uploadAudio(localPath: string): Promise<string> {
+    const { storage } = window.require("uxp") as any;
+
+    const apiKey = authService.get();
+    if (!apiKey) throw new Error("Not authenticated");
+
+    const entry = await storage.localFileSystem.getEntryForNativePath(localPath);
+    const buffer: ArrayBuffer = await entry.read({ format: storage.formats.binary });
+
+    const filename = localPath.split("/").pop() || "audio.wav";
+    const formData = new FormData();
+    formData.append("file", new Blob([buffer], { type: "audio/wav" }), filename);
+
+    const url = `${this.baseURL}/audio/upload`;
+    console.log(`[BackendClient] POST ${url} (${filename})`);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Upload failed: ${(err as any).detail || res.statusText}`);
+    }
+
+    const data = await res.json() as { server_path: string };
+    console.log(`[BackendClient] Uploaded → ${data.server_path}`);
+    return data.server_path;
+  }
+
+  /**
+   * Generate transcription from audio clips.
+   * Pass preextracted=true when clips have been exported via AME and uploaded —
+   * the backend will skip ffmpeg extraction and use the files directly.
+   */
+  async generateTranscription(clips: AudioClipInfo[], preextracted = false): Promise<TranscriptionResponse> {
     return this.request({
       method: "POST",
       endpoint: "/audio/transcription",
@@ -99,7 +145,8 @@ export class BackendClient {
           source_in_point: clip.sourceInPoint,
           source_out_point: clip.sourceOutPoint,
           timeline_start: clip.timelineStart,
-          timeline_end: clip.timelineEnd
+          timeline_end: clip.timelineEnd,
+          preextracted,
         }))
       },
       timeout: 300000 // 5 minutes

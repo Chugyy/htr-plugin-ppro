@@ -10,11 +10,12 @@ from app.api.models.common import BaseSchema
 class AudioClipDTO(BaseSchema):
     """Audio clip information from frontend"""
     clip_name: str = Field(..., description="Name of the video clip")
-    source_file_path: str = Field(..., description="Path to source video file")
+    source_file_path: str = Field(..., description="Path to source video/audio file")
     source_in_point: float = Field(..., description="In point in source file (seconds)")
     source_out_point: float = Field(..., description="Out point in source file (seconds)")
     timeline_start: float = Field(..., description="Timeline start position (seconds)")
     timeline_end: float = Field(..., description="Timeline end position (seconds)")
+    preextracted: bool = Field(False, description="True when audio is already extracted — skip ffmpeg extraction")
 
 
 class TranscriptionRequest(BaseSchema):

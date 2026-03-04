@@ -5,6 +5,7 @@
 
 import * as premiereProAPI from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
+import * as ameAPI from '../api/ameAPI';
 import type { TranscriptionResponse } from '@/core/types';
 
 /**
@@ -89,9 +90,37 @@ export async function generateTranscription(
       throw new Error("No audio clips found in selected tracks");
     }
 
-    // 3. Call backend to generate transcription
+    // 3. Export audio segments locally via AME, upload to backend
+    console.log("[JOB] Exporting audio segments via AME...");
+    const processedClips = [];
+
+    for (const clip of clips) {
+      console.log(`[JOB] AME export: ${clip.clipName}`);
+      const localAudioPath = await ameAPI.exportAudioSegment(
+        clip.sourceFilePath,
+        clip.sourceInPoint,
+        clip.sourceOutPoint,
+        clip.clipName
+      );
+
+      let serverPath: string;
+      try {
+        serverPath = await backendClient.uploadAudio(localAudioPath);
+      } finally {
+        await ameAPI.deleteLocalFile(localAudioPath);
+      }
+
+      processedClips.push({
+        ...clip,
+        sourceFilePath: serverPath,
+        sourceInPoint: 0,
+        sourceOutPoint: clip.sourceDuration,
+      });
+    }
+
+    // 4. Call backend to generate transcription (audio already extracted)
     console.log("[JOB] Calling backend for transcription...");
-    const response = await backendClient.generateTranscription(clips);
+    const response = await backendClient.generateTranscription(processedClips, true);
 
     if (!response.transcriptionJson) {
       throw new Error("Transcription generation failed");

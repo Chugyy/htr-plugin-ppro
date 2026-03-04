@@ -13,7 +13,7 @@
     "enableSWCSupport": true
   },
   "requiredPermissions": {
-    "localFileSystem": "request",
+    "localFileSystem": "full",
     "clipboard": "readAndWrite",
     "network": {
       "domains": ["http://localhost:5001", "https://htr-plugin-api.multimodal-house.fr"]
