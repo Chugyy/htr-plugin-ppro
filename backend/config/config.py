@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Paths
     temp_dir: Path = Field(Path("temp"), env="TEMP_DIR")
 
+    # Corrector Service
+    corrector_url: str = Field("http://localhost:8080", env="CORRECTOR_URL")
+
     # Transcription Services
     assemblyai_api_key: str = Field("", env="ASSEMBLYAI_API_KEY")
 

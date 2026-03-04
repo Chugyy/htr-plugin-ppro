@@ -24,14 +24,15 @@ class CorrectorClient:
     - POST /suggest/fr: Get spelling suggestions (POST)
     """
 
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: str = None):
         """
         Initialize corrector client
 
         Args:
-            base_url: Base URL of Grammalecte service (default: http://localhost:8080)
+            base_url: Base URL of Grammalecte service (defaults to settings.corrector_url)
         """
-        self.base_url = base_url.rstrip("/")
+        from config.config import settings
+        self.base_url = (base_url or settings.corrector_url).rstrip("/")
         self.timeout = 30.0
 
     async def analyze_text(
