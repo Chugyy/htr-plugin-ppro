@@ -16,7 +16,7 @@
     "localFileSystem": "request",
     "clipboard": "readAndWrite",
     "network": {
-      "domains": ["http://localhost:5001"]
+      "domains": ["http://localhost:5001", "https://htr-plugin-api.multimodal-house.fr"]
     }
   },
   "entrypoints": [
