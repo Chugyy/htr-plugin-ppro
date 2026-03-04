@@ -1,0 +1,23 @@
+.status {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 6px 0;
+}
+
+.status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+
+.status__dot--neutral  { background: #555; }
+.status__dot--positive { background: var(--color-success); }
+.status__dot--negative { background: var(--color-error); }
+.status__dot--notice   { background: #ff9800; }
+
+.status__text { font-size: var(--font-size-sm); }

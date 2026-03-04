@@ -1,0 +1,7 @@
+.info-box {
+  font-size: var(--font-size-sm);
+  padding: 6px 10px;
+  border-left: 2px solid var(--color-success-bg);
+  color: #99ff99;
+  margin: 6px 0;
+}

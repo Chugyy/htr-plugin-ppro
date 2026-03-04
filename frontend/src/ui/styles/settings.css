@@ -1,0 +1,22 @@
+:root {
+  --color-text:          var(--uxp-host-text-color, #e0e0e0);
+  --color-text-muted:    var(--uxp-host-text-color-secondary, #808080);
+  --color-bg:            var(--uxp-host-background-color, transparent);
+  --color-border:        var(--uxp-host-border-color, rgba(255,255,255,0.08));
+  --color-accent:        #5aa7ff;
+  --color-accent-bg:     rgba(90,167,255,0.06);
+  --color-accent-border: rgba(90,167,255,0.3);
+  --color-success:       #4caf50;
+  --color-success-bg:    rgba(80,255,120,0.5);
+  --color-error:         #f44336;
+  --color-error-bg:      rgba(255,80,80,0.5);
+  --color-warning-bg:    rgba(255,180,0,0.5);
+  --font-body:           adobe-clean, sans-serif;
+  --font-mono:           'Courier New', monospace;
+  --font-size-base:      12px;
+  --font-size-sm:        11px;
+  --space-xs:            4px;
+  --space-sm:            8px;
+  --space-md:            12px;
+  --space-lg:            20px;
+}

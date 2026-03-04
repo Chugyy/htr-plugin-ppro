@@ -1,0 +1,26 @@
+<div class="section__input">
+  <div class="field">
+    <button id="btn-load-generation" class="btn">Charger Séquence Active</button>
+  </div>
+</div>
+
+<div id="generation-loaded" hidden>
+  <div class="section__process">
+    <p id="generation-sequence-name" class="sequence-label"></p>
+    <div class="track__header">Pistes audio</div>
+    <div id="generation-track-group" class="track__list"></div>
+  </div>
+</div>
+
+<div class="section__input">
+  <div class="field">
+    <button id="btn-generate" class="btn btn--primary" disabled>Générer Transcription</button>
+  </div>
+</div>
+
+<div id="generation-status" class="status">
+  <span class="status__dot status__dot--neutral"></span>
+  <span class="status__text">Prêt</span>
+</div>
+
+<div id="generation-logs" class="section__logs">Cliquez "Charger Séquence Active" pour commencer</div>

@@ -1,0 +1,43 @@
+body {
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: var(--color-bg);
+  padding: var(--space-sm);
+  height: 100vh;
+  overflow-y: auto;
+}
+
+
+input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+select {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 5px 8px;
+  font-size: var(--font-size-sm);
+  width: 100%;
+  cursor: pointer;
+}
+
+select:disabled { opacity: 0.3; }
+
+textarea {
+  background: rgba(0,0,0,0.2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  resize: none;
+  width: 100%;
+  height: 130px;
+  line-height: 1.5;
+}

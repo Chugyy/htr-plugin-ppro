@@ -1,0 +1,26 @@
+.section__input {
+  padding: var(--space-sm);
+  margin-bottom: 6px;
+}
+
+.section__process {
+  padding: var(--space-sm);
+  margin-bottom: 6px;
+}
+
+.section__logs {
+  border-left: 2px solid rgba(90,167,255,0.2);
+  border-top: 1px solid var(--color-border);
+  padding: 8px 0 8px 10px;
+  font-size: var(--font-size-sm);
+  height: 60px;
+  max-height: 60px;
+  overflow-y: auto;
+  color: var(--color-text-muted);
+  white-space: pre-line;
+  line-height: 1.4;
+}
+
+.section__logs--success { border-left-color: var(--color-success-bg); color: #99ff99; }
+.section__logs--warning { border-left-color: var(--color-warning-bg); color: #ffcc99; }
+.section__logs--error   { border-left-color: var(--color-error-bg);   color: #ff9999; }

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>HTR Plugin</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app">
+    <div class="tabs-container">
+
+      <nav class="tab__nav">
+
+        <!-- Generation — lightning bolt (ios7 style) -->
+        <div class="tab__btn tab__btn--active" role="tab" tabindex="0" data-tab="generation">
+          <span class="tab__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+            </svg>
+          </span>
+          <span>Génération</span>
+        </div>
+
+        <!-- Correction — pencil (ios7 style) -->
+        <div class="tab__btn" role="tab" tabindex="0" data-tab="correction">
+          <span class="tab__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16.5 3.5L20.5 7.5L8 20H4V16L16.5 3.5Z"/>
+              <line x1="14" y1="6" x2="18" y2="10"/>
+            </svg>
+          </span>
+          <span>Correction</span>
+        </div>
+
+        <!-- Audio — waveform (ios7 style) -->
+        <div class="tab__btn" role="tab" tabindex="0" data-tab="audio">
+          <span class="tab__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="2"  y1="9"  x2="2"  y2="15"/>
+              <line x1="6"  y1="5"  x2="6"  y2="19"/>
+              <line x1="10" y1="2"  x2="10" y2="22"/>
+              <line x1="14" y1="5"  x2="14" y2="19"/>
+              <line x1="18" y1="8"  x2="18" y2="16"/>
+              <line x1="22" y1="10" x2="22" y2="14"/>
+            </svg>
+          </span>
+          <span>Audio</span>
+        </div>
+
+      </nav>
+
+      <div id="tab-generation" class="tab__panel tab__panel--active"></div>
+      <div id="tab-correction" class="tab__panel"></div>
+      <div id="tab-audio" class="tab__panel"></div>
+
+    </div>
+  </div>
+
+  <script src="./index.js"></script>
+</body>
+</html>

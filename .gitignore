@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Environment
+.env
+*.env
+
+# Logs
+logs/
+*.log
+
+# Temp / build
+tmp/
+temp/
+*.tmp
+dist/
+build/
+
+# Node
+node_modules/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# CCX
+*.ccx

@@ -1,0 +1,7 @@
+[hidden], .hidden { display: none !important; }
+
+.sequence-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-sm);
+}
