@@ -25,6 +25,9 @@ build/
 node_modules/
 .DS_Store
 
+# Frontend dev (localhost URLs)
+frontend-dev/
+
 # IDE
 .vscode/
 .idea/

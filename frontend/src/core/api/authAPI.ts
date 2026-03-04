@@ -3,7 +3,7 @@
  * Validates an admin API key against the backend.
  */
 
-const BASE_URL = "http://localhost:5001";
+const BASE_URL = "https://htr-plugin-api.multimodal-house.fr";
 
 export async function validateApiKey(key: string): Promise<boolean> {
   try {

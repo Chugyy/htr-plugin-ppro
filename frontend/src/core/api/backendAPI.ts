@@ -17,7 +17,7 @@ import { authService } from '@/core/services/authService';
 // ========================================
 
 const BACKEND_CONFIG = {
-  baseURL: "http://localhost:5001",
+  baseURL: "https://htr-plugin-api.multimodal-house.fr",
   timeout: 30000, // 30 seconds
 };
 
