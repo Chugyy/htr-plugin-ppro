@@ -46,21 +46,37 @@ async function showAuthPage(): Promise<void> {
 
 async function initApp(): Promise<void> {
   await loadPages();
+  document.querySelector<HTMLElement>('.tabs-container')!.removeAttribute('hidden');
   initTabNavigation();
   mountGenerationHooks();
   mountCorrectionHooks();
   mountAudioHooks();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const storedKey = authService.get();
-  const isAuthed  = storedKey ? await validateApiKey(storedKey) : false;
+function mountDevBadge(): void {
+  if (import.meta.env.VITE_MODE !== 'development') return;
+  const badge = document.createElement('div');
+  badge.textContent = `DEV · ${import.meta.env.VITE_BACKEND_URL}`;
+  badge.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#f59e0b;color:#000;font-size:10px;text-align:center;padding:2px 4px;z-index:9999;opacity:0.85;';
+  document.body.appendChild(badge);
+}
 
-  if (!isAuthed) {
+document.addEventListener('DOMContentLoaded', async () => {
+  mountDevBadge();
+  try {
+    const storedKey = authService.get();
+    const isAuthed  = storedKey ? await validateApiKey(storedKey) : false;
+
+    if (!isAuthed) {
+      authService.clear();
+      await showAuthPage();
+      return;
+    }
+
+    await initApp();
+  } catch (err) {
+    console.error('[App] Init failed:', err);
     authService.clear();
     await showAuthPage();
-    return;
   }
-
-  await initApp();
 });

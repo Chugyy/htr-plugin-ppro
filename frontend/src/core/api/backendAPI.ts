@@ -17,7 +17,7 @@ import { authService } from '@/core/services/authService';
 // ========================================
 
 const BACKEND_CONFIG = {
-  baseURL: "https://htr-plugin-api.multimodal-house.fr",
+  baseURL: import.meta.env.VITE_BACKEND_URL as string,
   timeout: 30000, // 30 seconds
 };
 
@@ -103,7 +103,7 @@ export class BackendClient {
     const apiKey = authService.get();
     if (!apiKey) throw new Error("Not authenticated");
 
-    const entry = await storage.localFileSystem.getEntryForNativePath(localPath);
+    const entry = await storage.localFileSystem.getEntryWithUrl(localPath);
     const buffer: ArrayBuffer = await entry.read({ format: storage.formats.binary });
 
     const filename = localPath.split("/").pop() || "audio.wav";
@@ -113,11 +113,15 @@ export class BackendClient {
     const url = `${this.baseURL}/audio/upload`;
     console.log(`[BackendClient] POST ${url} (${filename})`);
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120_000); // 2 min
+
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # app/core/services/transcription.py
 
+import asyncio
+import logging
+import time
 import assemblyai as aai
 import uuid
 import string
@@ -8,6 +11,8 @@ from pathlib import Path
 from typing import Dict, Any, List
 from config.config import settings
 from app.core.utils.validation import validate_file_path
+
+logger = logging.getLogger(__name__)
 
 
 def adjust_timestamps_to_timeline(premiere_json: Dict[str, Any], timeline_offset: float) -> Dict[str, Any]:
@@ -191,19 +196,23 @@ async def transcribe_audio(audio_path: str, language: str = "fr") -> Dict[str, A
     # Configure AssemblyAI
     configure_assemblyai()
 
-    # Configure transcription with language detection
+    # Configure transcription — fixed French, best model, no detection overhead
     config = aai.TranscriptionConfig(
-        speech_models=["universal-3-pro", "universal-2"],
-        language_detection=True
+        speech_models=["universal-3-pro"],
+        language_code="fr"
     )
 
-    # Transcribe
+    # Transcribe — run in thread to avoid blocking FastAPI event loop
     try:
+        logger.info(f"[ASSEMBLYAI] Uploading {audio_path} to AssemblyAI...")
+        t0 = time.time()
         transcriber = aai.Transcriber(config=config)
-        transcript = transcriber.transcribe(str(audio_file))
+        transcript = await asyncio.to_thread(transcriber.transcribe, str(audio_file))
+        logger.info(f"[ASSEMBLYAI] Response received in {time.time()-t0:.2f}s | status={transcript.status}")
 
         # Check status
         if transcript.status == "error":
+            logger.error(f"[ASSEMBLYAI] Transcription error: {transcript.error}")
             raise RuntimeError(f"Transcription failed: {transcript.error}")
 
         # Convert to Premiere format

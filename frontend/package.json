@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch --mode development",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

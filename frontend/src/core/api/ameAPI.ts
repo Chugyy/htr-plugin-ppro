@@ -54,6 +54,8 @@ async function getPresetPath(): Promise<string> {
  * @param outPoint       - End time in seconds
  * @param clipName       - Used to name the output file
  */
+let _exportCounter = 0;
+
 export async function exportAudioSegment(
   sourceFilePath: string,
   inPoint: number,
@@ -69,7 +71,7 @@ export async function exportAudioSegment(
   const presetPath = await getPresetPath();
   const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
   const safeName = clipName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
-  const outputName = `${safeName}_${Date.now()}.wav`;
+  const outputName = `${safeName}_${Date.now()}_${++_exportCounter}.wav`;
   const outputPath = `${dataFolder.nativePath}/${outputName}`;
 
   const inTickTime = ppro.TickTime.createWithSeconds(inPoint);
@@ -78,39 +80,48 @@ export async function exportAudioSegment(
   console.log(`[AME] Encoding: ${clipName} (${inPoint.toFixed(2)}s → ${outPoint.toFixed(2)}s)`);
   console.log(`[AME] Output: ${outputPath}`);
 
-  await new Promise<void>((resolve, reject) => {
-    const TIMEOUT_MS = 300_000; // 5 min
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error(`AME export timeout for: ${clipName}`));
-    }, TIMEOUT_MS);
+  // encodeFile() returns boolean (queued), events unreliable in UXP.
+  // Use async poll loop (while + await setTimeout) — more reliable than setInterval in UXP.
+  manager.encodeFile(
+    sourceFilePath,
+    outputPath,
+    presetPath,
+    inTickTime,  // inPoint  (UXP order: inPoint before workArea)
+    outTickTime, // outPoint
+    1,           // workArea: 1 = ENCODE_IN_TO_OUT (was 0 = ENTIRE_FILE)
+    false,       // removeUponCompletion
+    true         // startQueueImmediately
+  );
 
-    const onComplete = () => { cleanup(); resolve(); };
-    const onError   = () => { cleanup(); reject(new Error(`AME export failed for: ${clipName}`)); };
-    const onCancel  = () => { cleanup(); reject(new Error(`AME export cancelled for: ${clipName}`)); };
+  const TIMEOUT_MS = 300_000;
+  const deadline   = Date.now() + TIMEOUT_MS;
+  let lastSize     = -1;
+  let stableCount  = 0;
 
-    function cleanup() {
-      clearTimeout(timer);
-      try { manager.removeEventListener(ppro.EncoderManager.EVENT_RENDER_COMPLETE, onComplete); } catch {}
-      try { manager.removeEventListener(ppro.EncoderManager.EVENT_RENDER_ERROR,    onError);   } catch {}
-      try { manager.removeEventListener(ppro.EncoderManager.EVENT_RENDER_CANCEL,   onCancel);  } catch {}
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1_000));
+    try {
+      const entry = await dataFolder.getEntry(outputName);
+      const meta  = await entry.getMetadata();
+      const size: number = meta.size ?? 0;
+      console.log(`[AME] Poll: ${outputName} size=${size}`);
+      if (size > 0 && size === lastSize) {
+        if (++stableCount >= 2) {
+          console.log(`[AME] Poll: stable at ${size} bytes → done`);
+          break;
+        }
+      } else {
+        stableCount = 0;
+        lastSize = size;
+      }
+    } catch {
+      console.log(`[AME] Poll: ${outputName} not found yet`);
     }
+  }
 
-    manager.addEventListener(ppro.EncoderManager.EVENT_RENDER_COMPLETE, onComplete);
-    manager.addEventListener(ppro.EncoderManager.EVENT_RENDER_ERROR,    onError);
-    manager.addEventListener(ppro.EncoderManager.EVENT_RENDER_CANCEL,   onCancel);
-
-    manager.encodeFile(
-      sourceFilePath,
-      outputPath,
-      presetPath,
-      inTickTime,
-      outTickTime,
-      0,     // workArea: 0 = full range defined by inPoint/outPoint
-      false, // removeUponCompletion
-      true   // startQueueImmediately
-    ).catch((err: Error) => { cleanup(); reject(err); });
-  });
+  if (Date.now() >= deadline) {
+    throw new Error(`AME export timeout for: ${clipName}`);
+  }
 
   console.log(`[AME] Export complete: ${outputName}`);
   return outputPath;

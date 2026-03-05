@@ -3,9 +3,13 @@
 
 import shutil
 import uuid
+import logging
+import time
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.api.middleware.auth import verify_api_key
+
+logger = logging.getLogger(__name__)
 from config.config import settings
 from app.api.models.audio import (
     TranscriptionRequest,
@@ -32,9 +36,12 @@ async def upload_audio(
     ext = Path(file.filename or "audio.wav").suffix or ".wav"
     dest_path = settings.temp_dir / f"upload_{uuid.uuid4().hex}{ext}"
 
+    t0 = time.time()
     with dest_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    size_mb = dest_path.stat().st_size / 1_048_576
+    logger.info(f"[UPLOAD] {file.filename} → {dest_path.name} ({size_mb:.2f} MB) in {time.time()-t0:.2f}s")
     return {"server_path": str(dest_path)}
 
 
@@ -51,16 +58,26 @@ async def generate_transcription(
     3. Transcribe combined audio
     4. Return transcription JSON with metadata
     """
+    logger.info(f"[TRANSCRIPTION] Request received: {len(request.clips)} clip(s)")
+    for i, clip in enumerate(request.clips):
+        logger.info(f"[TRANSCRIPTION] Clip {i+1}: {clip.clip_name} | preextracted={clip.preextracted} | path={clip.source_file_path}")
+
+    t0 = time.time()
     try:
         result = await extract_and_transcribe(request.clips)
+        logger.info(f"[TRANSCRIPTION] Done in {time.time()-t0:.2f}s | words={result.get('word_count')} | duration={result.get('duration'):.2f}s")
         return TranscriptionResponse(**result)
     except FileNotFoundError as e:
+        logger.error(f"[TRANSCRIPTION] FileNotFoundError: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
+        logger.error(f"[TRANSCRIPTION] ValueError: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
+        logger.error(f"[TRANSCRIPTION] RuntimeError: {e}")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
     except Exception as e:
+        logger.exception(f"[TRANSCRIPTION] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 

@@ -2,6 +2,8 @@
 # app/core/jobs/transcription.py
 
 import logging
+import time
+from difflib import SequenceMatcher
 from typing import List, Dict, Any
 from pathlib import Path
 from app.api.models.audio import AudioClipDTO
@@ -33,6 +35,7 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
         RuntimeError: Processing failed
     """
     created_files: List[Path] = []
+    t_start = time.time()
 
     try:
         # Extract audio from each clip
@@ -41,16 +44,20 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
         for clip in clips:
             if clip.preextracted:
                 audio_path = Path(clip.source_file_path)
+                logger.info(f"[JOB] Pre-extracted clip: {clip.clip_name} → {audio_path} (exists={audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 'N/A'})")
                 if not audio_path.exists():
                     raise FileNotFoundError(f"Pre-extracted audio not found: {audio_path}")
-                created_files.append(audio_path)  # cleanup uploaded file after transcription
+                created_files.append(audio_path)
             else:
+                logger.info(f"[JOB] Extracting clip: {clip.clip_name} ({clip.source_in_point:.2f}s → {clip.source_out_point:.2f}s)")
+                t = time.time()
                 audio_path = await extract_audio_segment(
                     source_path=clip.source_file_path,
                     in_point=clip.source_in_point,
                     out_point=clip.source_out_point,
                     clip_name=clip.clip_name
                 )
+                logger.info(f"[JOB] Extraction done in {time.time()-t:.2f}s → {audio_path}")
                 created_files.append(audio_path)
 
             clips_info.append(ClipTimelineInfo(
@@ -62,25 +69,39 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
 
         # Calculate timeline offset (earliest clip start position)
         timeline_offset = min(clip.timeline_start for clip in clips)
+        logger.info(f"[JOB] Timeline offset: {timeline_offset:.2f}s | clips: {len(clips_info)}")
 
         # Combine or use single audio
         if len(clips_info) == 1:
             final_audio_path = clips_info[0].audio_path
+            logger.info(f"[JOB] Single clip — skipping combine")
         else:
+            logger.info(f"[JOB] Combining {len(clips_info)} clips...")
+            t = time.time()
             final_audio_path = await combine_audio_timeline(
                 clips_info=clips_info,
                 output_name="combined_timeline"
             )
+            logger.info(f"[JOB] Combine done in {time.time()-t:.2f}s → {final_audio_path}")
             created_files.append(final_audio_path)
 
+        final_size_mb = final_audio_path.stat().st_size / 1_048_576
+        logger.info(f"[JOB] Sending to AssemblyAI: {final_audio_path.name} ({final_size_mb:.2f} MB)")
+        t = time.time()
         # Transcribe
         result = await transcribe_audio(str(final_audio_path), language="fr")
+        logger.info(f"[JOB] AssemblyAI done in {time.time()-t:.2f}s | words={result.get('word_count')} | duration={result.get('duration'):.2f}s")
 
         # Adjust timestamps to match Premiere timeline positions
         adjusted_json = adjust_timestamps_to_timeline(
             result["premiere_json"],
             timeline_offset
         )
+
+        # Trim hallucinations and out-of-bounds segments
+        video_end = max(clip.timeline_end for clip in clips)
+        adjusted_json = _trim_transcript(adjusted_json, video_end)
+        logger.info(f"[JOB] After trim: {len(adjusted_json.get('segments', []))} segments | video_end={video_end:.2f}s")
 
         # Verify duration consistency (drift detection)
         audio_duration = get_audio_duration(final_audio_path)
@@ -98,6 +119,7 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
                 )
 
         # Return formatted result
+        logger.info(f"[JOB] Total job time: {time.time()-t_start:.2f}s")
         return {
             "transcription_json": adjusted_json,
             "text": result["text"],
@@ -113,6 +135,46 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
                     file_path.unlink()
             except Exception:
                 pass
+
+
+def _trim_transcript(premiere_json: Dict[str, Any], video_end: float) -> Dict[str, Any]:
+    """
+    Remove segments that are out-of-bounds or likely hallucinations.
+
+    Rules:
+    1. Hard cutoff: drop any segment starting more than 4s after video_end
+    2. Duplicate detection: drop any segment whose text is ≥90% similar
+       to the concatenation of all previously accepted segments
+    """
+    GRACE_SECONDS    = 4.0
+    SIMILARITY_RATIO = 0.90
+    cutoff = video_end + GRACE_SECONDS
+
+    kept: List[Dict[str, Any]] = []
+    seen_text = ""
+
+    for seg in premiere_json.get("segments", []):
+        seg_start: float = seg.get("start", 0.0)
+
+        # Rule 1: hard time cutoff
+        if seg_start > cutoff:
+            logger.info(f"[TRIM] Dropped (out-of-bounds {seg_start:.2f}s > {cutoff:.2f}s): {seg.get('words', [{}])[0].get('text', '')[:40]}")
+            continue
+
+        # Rule 2: near-duplicate
+        seg_text = " ".join(w.get("text", "") for w in seg.get("words", []) if w.get("type") == "word")
+        if seen_text and seg_text:
+            ratio = SequenceMatcher(None, seg_text.lower(), seen_text.lower()).ratio()
+            if ratio >= SIMILARITY_RATIO:
+                logger.info(f"[TRIM] Dropped (duplicate {ratio:.0%}): {seg_text[:60]}")
+                continue
+
+        kept.append(seg)
+        seen_text = (seen_text + " " + seg_text).strip()
+
+    result = premiere_json.copy()
+    result["segments"] = kept
+    return result
 
 
 async def correct_french(transcription_json: Dict[str, Any]) -> Dict[str, Any]:
