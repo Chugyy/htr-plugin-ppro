@@ -6,8 +6,9 @@ import time
 from typing import List, Dict, Any
 from pathlib import Path
 from app.api.models.audio import TrackOptimizationDTO
-from app.core.services.audio import extract_audio_segment, get_audio_duration
+from app.core.services.audio import get_audio_duration
 from app.core.services.audio.optimization import apply_optimization
+from app.core.jobs.utils import resolve_clip_audio
 from config.config import settings
 
 logger = logging.getLogger(__name__)
@@ -64,14 +65,7 @@ async def optimize_tracks(tracks: List[TrackOptimizationDTO]) -> Dict[str, Any]:
 
             # Process each clip in track
             for clip_index, clip in enumerate(track.clips):
-                # Extract audio segment (intermediate file)
-                extracted_audio = await extract_audio_segment(
-                    source_path=clip.source_file_path,
-                    in_point=clip.source_in_point,
-                    out_point=clip.source_out_point,
-                    clip_name=clip.clip_name
-                )
-                created_files.append(extracted_audio)
+                extracted_audio = await resolve_clip_audio(clip, created_files)
 
                 # Apply optimization (final file)
                 optimized_audio = apply_optimization(

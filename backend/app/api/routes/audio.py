@@ -7,6 +7,7 @@ import logging
 import time
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from app.api.middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,21 @@ async def upload_audio(
     size_mb = dest_path.stat().st_size / 1_048_576
     logger.info(f"[UPLOAD] {file.filename} → {dest_path.name} ({size_mb:.2f} MB) in {time.time()-t0:.2f}s")
     return {"server_path": str(dest_path)}
+
+
+@router.get("/download")
+async def download_file(
+    path: str,
+    _: str = Depends(verify_api_key)
+):
+    """Download an optimized audio file produced by /audio/optimization."""
+    file_path = Path(path).resolve()
+    if not str(file_path).startswith(str(settings.temp_dir.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    logger.info(f"[DOWNLOAD] {file_path.name} ({file_path.stat().st_size / 1_048_576:.2f} MB)")
+    return FileResponse(file_path, media_type="audio/wav", filename=file_path.name)
 
 
 @router.post("/transcription", response_model=TranscriptionResponse)

@@ -235,21 +235,38 @@ export async function importOptimizedClips(
     }>;
   }>
 ): Promise<void> {
+  const { backendClient } = await import('@/core/api/backendAPI');
+  const uxp = window.require("uxp") as any;
   const project = await getActiveProject();
   const sequence = await getActiveSequence();
 
-  // 1. Collect all file paths and import them
-  const allPaths = optimizedTracks.flatMap(t => t.clips.map(c => c.optimizedPath));
-  console.log(`[PPRO:1] importFiles — paths:`, allPaths);
-  const importOk = await project.importFiles(allPaths, true);
-  console.log(`[PPRO:1] importFiles — result: ${importOk}`);
+  // 1. Download optimized files from backend to local UXP data folder
+  const allServerPaths = optimizedTracks.flatMap(t => t.clips.map(c => c.optimizedPath));
+  console.log(`[PPRO:1] Downloading ${allServerPaths.length} optimized file(s) from backend...`);
+  const localPaths = await Promise.all(allServerPaths.map(p => backendClient.downloadOptimizedFile(p)));
+  const serverToLocal = new Map(allServerPaths.map((s, i) => [s, localPaths[i]]));
+  console.log(`[PPRO:1] Downloaded — local paths:`, localPaths);
 
-  // 2. Scan project for imported items (by filename)
-  console.log(`[PPRO:2] getRootItem...`);
+  // 2. Import local files into Premiere project
+  const importOk = await project.importFiles(localPaths, true);
+  console.log(`[PPRO:2] importFiles — result: ${importOk}`);
+
+  // 3. Poll until all imported items appear in the project tree
   const rootItem = await project.getRootItem();
+  const expectedFiles = new Set(localPaths.map(p => p.split('/').pop()!));
   const itemMap = new Map<string, any>();
-  await scanItemsIntoMap(rootItem, itemMap);
-  console.log(`[PPRO:2] itemMap size: ${itemMap.size}`, [...itemMap.keys()]);
+  const POLL_TIMEOUT = 30_000;
+  const deadline = Date.now() + POLL_TIMEOUT;
+
+  while (Date.now() < deadline) {
+    itemMap.clear();
+    await scanItemsIntoMap(rootItem, itemMap);
+    const found = [...expectedFiles].filter(f => itemMap.has(f)).length;
+    console.log(`[PPRO:3] polling items: ${found}/${expectedFiles.size}`);
+    if (found === expectedFiles.size) break;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.log(`[PPRO:3] itemMap ready — size: ${itemMap.size}`);
 
   // 3. Get current track count — new tracks start after existing ones
   console.log(`[PPRO:3] getAudioTrackCount...`);
@@ -267,7 +284,8 @@ export async function importOptimizedClips(
       optimizedTracks.forEach((track, offset) => {
         const audioTrackIndex = baseTrackIndex + offset;
         track.clips.forEach((clip) => {
-          const filename = clip.optimizedPath.split('/').pop()!;
+          const localPath = serverToLocal.get(clip.optimizedPath)!;
+          const filename = localPath.split('/').pop()!;
           const projectItem = itemMap.get(filename);
           console.log(`[PPRO:5] clip "${filename}" → projectItem:`, projectItem, `| timelineStart: ${clip.timelineStart} (${typeof clip.timelineStart}) | audioTrackIndex: ${audioTrackIndex} (${typeof audioTrackIndex})`);
           if (!projectItem) {
@@ -291,6 +309,18 @@ export async function importOptimizedClips(
     }, "Import Optimized Audio");
   });
   console.log(`[PPRO:6] lockedAccess done`);
+
+  // 6. Cleanup local temp files (non-blocking)
+  const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
+  await Promise.allSettled(
+    localPaths.map(async (p) => {
+      try {
+        const entry = await dataFolder.getEntry(p.split('/').pop()!);
+        await entry.delete();
+      } catch {}
+    })
+  );
+  console.log(`[PPRO:6] local temp files cleaned up`);
 }
 
 // ========================================

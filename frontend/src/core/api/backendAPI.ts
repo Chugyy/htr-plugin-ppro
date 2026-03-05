@@ -158,6 +158,31 @@ export class BackendClient {
   }
 
   /**
+   * Download an optimized file from the backend to the UXP data folder.
+   * Returns the local native path for use with project.importFiles().
+   */
+  async downloadOptimizedFile(serverPath: string): Promise<string> {
+    const uxp = window.require("uxp") as any;
+    const apiKey = authService.get();
+    if (!apiKey) throw new Error("Not authenticated");
+
+    const filename = serverPath.split("/").pop()!;
+    const url = `${this.baseURL}/audio/download?path=${encodeURIComponent(serverPath)}`;
+    console.log(`[BackendClient] GET ${url}`);
+
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
+
+    const buffer = await res.arrayBuffer();
+    const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
+    const entry = await dataFolder.createFile(filename, { overwrite: true });
+    await entry.write(buffer, { format: uxp.storage.formats.binary });
+
+    console.log(`[BackendClient] Downloaded → ${entry.nativePath}`);
+    return entry.nativePath as string;
+  }
+
+  /**
    * Correct transcription using Grammalecte
    */
   async correctTranscription(transcriptionJson: PremiereTranscriptJSON): Promise<CorrectionResponse> {
@@ -184,7 +209,20 @@ export class BackendClient {
     return this.request({
       method: "POST",
       endpoint: "/audio/optimization",
-      body: { tracks },
+      body: {
+        tracks: tracks.map(track => ({
+          ...track,
+          clips: track.clips.map(clip => ({
+            clip_name: clip.clipName,
+            source_file_path: clip.sourceFilePath,
+            source_in_point: clip.sourceInPoint,
+            source_out_point: clip.sourceOutPoint,
+            timeline_start: clip.timelineStart,
+            timeline_end: clip.timelineEnd,
+            preextracted: true,
+          })),
+        })),
+      },
       timeout: 300000  // 5 minutes
     });
   }

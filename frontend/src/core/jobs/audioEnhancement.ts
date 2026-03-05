@@ -5,7 +5,8 @@
 
 import * as premiereProAPI from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
-import type { OptimizationResponse } from '@/core/types';
+import { prepareClipsForBackend } from './utils';
+import type { AudioClipInfo, OptimizationResponse } from '@/core/types';
 
 /**
  * Load audio tracks from active sequence
@@ -93,14 +94,18 @@ export async function optimizeAudio(
     const tracks = await premiereProAPI.analyzeMultipleAudioTracks(trackIndices);
     console.log(`[JOB] Analyzed ${tracks.length} tracks`);
 
-    // 2. Prepare tracks payload for backend (per-track filterType)
+    // 2. Export via AME + upload per track (flatten → prepare → re-map)
+    const allClips: AudioClipInfo[] = tracks.flatMap(t => t.clips);
+    const processedClips = await prepareClipsForBackend(allClips);
+
+    let clipIndex = 0;
     const tracksPayload = tracks.map(track => ({
       trackIndex: track.trackIndex,
       filterType: selectedTracks.find(t => t.index === track.trackIndex)?.filterType ?? 'voice',
-      clips: track.clips
+      clips: track.clips.map(() => processedClips[clipIndex++]),
     }));
 
-    // 3. Call backend to optimize audio
+    // 3. Call backend to optimize audio (clips are preextracted + uploaded)
     console.log("[JOB] Calling backend for audio optimization...");
     const response = await backendClient.optimizeAudio(tracksPayload);
 

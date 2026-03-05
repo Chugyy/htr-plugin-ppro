@@ -15,6 +15,7 @@ from app.core.services.audio import (
 )
 from app.core.services.transcription import transcribe_audio, adjust_timestamps_to_timeline
 from app.core.services.smart_corrector import smart_correct_french
+from app.core.jobs.utils import resolve_clip_audio
 
 logger = logging.getLogger(__name__)
 
@@ -42,23 +43,7 @@ async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
         clips_info: List[ClipTimelineInfo] = []
 
         for clip in clips:
-            if clip.preextracted:
-                audio_path = Path(clip.source_file_path)
-                logger.info(f"[JOB] Pre-extracted clip: {clip.clip_name} → {audio_path} (exists={audio_path.exists()}, size={audio_path.stat().st_size if audio_path.exists() else 'N/A'})")
-                if not audio_path.exists():
-                    raise FileNotFoundError(f"Pre-extracted audio not found: {audio_path}")
-                created_files.append(audio_path)
-            else:
-                logger.info(f"[JOB] Extracting clip: {clip.clip_name} ({clip.source_in_point:.2f}s → {clip.source_out_point:.2f}s)")
-                t = time.time()
-                audio_path = await extract_audio_segment(
-                    source_path=clip.source_file_path,
-                    in_point=clip.source_in_point,
-                    out_point=clip.source_out_point,
-                    clip_name=clip.clip_name
-                )
-                logger.info(f"[JOB] Extraction done in {time.time()-t:.2f}s → {audio_path}")
-                created_files.append(audio_path)
+            audio_path = await resolve_clip_audio(clip, created_files)
 
             clips_info.append(ClipTimelineInfo(
                 audio_path=audio_path,
