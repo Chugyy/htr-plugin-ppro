@@ -233,7 +233,8 @@ export async function importOptimizedClips(
       timelineStart: number;
       timelineEnd: number;
     }>;
-  }>
+  }>,
+  outputDir: string
 ): Promise<void> {
   const { backendClient } = await import('@/core/api/backendAPI');
   const uxp = window.require("uxp") as any;
@@ -243,7 +244,7 @@ export async function importOptimizedClips(
   // 1. Download optimized files from backend to local UXP data folder
   const allServerPaths = optimizedTracks.flatMap(t => t.clips.map(c => c.optimizedPath));
   console.log(`[PPRO:1] Downloading ${allServerPaths.length} optimized file(s) from backend...`);
-  const localPaths = await Promise.all(allServerPaths.map(p => backendClient.downloadOptimizedFile(p)));
+  const localPaths = await Promise.all(allServerPaths.map(p => backendClient.downloadOptimizedFile(p, outputDir)));
   const serverToLocal = new Map(allServerPaths.map((s, i) => [s, localPaths[i]]));
   console.log(`[PPRO:1] Downloaded — local paths:`, localPaths);
 
@@ -309,18 +310,6 @@ export async function importOptimizedClips(
     }, "Import Optimized Audio");
   });
   console.log(`[PPRO:6] lockedAccess done`);
-
-  // 6. Cleanup local temp files (non-blocking)
-  const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
-  await Promise.allSettled(
-    localPaths.map(async (p) => {
-      try {
-        const entry = await dataFolder.getEntry(p.split('/').pop()!);
-        await entry.delete();
-      } catch {}
-    })
-  );
-  console.log(`[PPRO:6] local temp files cleaned up`);
 }
 
 // ========================================

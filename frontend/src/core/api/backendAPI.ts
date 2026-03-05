@@ -161,7 +161,7 @@ export class BackendClient {
    * Download an optimized file from the backend to the UXP data folder.
    * Returns the local native path for use with project.importFiles().
    */
-  async downloadOptimizedFile(serverPath: string): Promise<string> {
+  async downloadOptimizedFile(serverPath: string, outputDir: string): Promise<string> {
     const uxp = window.require("uxp") as any;
     const apiKey = authService.get();
     if (!apiKey) throw new Error("Not authenticated");
@@ -174,8 +174,10 @@ export class BackendClient {
     if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
     const buffer = await res.arrayBuffer();
-    const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
-    const entry = await dataFolder.createFile(filename, { overwrite: true });
+
+    // Write to user-specified output directory
+    const folderEntry = await uxp.storage.localFileSystem.getEntryWithUrl(outputDir);
+    const entry = await folderEntry.createFile(filename, { overwrite: true });
     await entry.write(buffer, { format: uxp.storage.formats.binary });
 
     console.log(`[BackendClient] Downloaded → ${entry.nativePath}`);

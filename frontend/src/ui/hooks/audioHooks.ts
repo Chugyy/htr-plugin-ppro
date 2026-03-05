@@ -92,8 +92,10 @@ export function mountAudioHooks(): void {
     setStatus('audio-status', 'notice', 'Chargement...');
     btnLoad.setAttribute('disabled', '');
     try {
-      const tracks = await loadAudioTracks();
+      const { tracks, projectDir } = await loadAudioTracks();
       renderAudioTrackCheckboxes(tracks);
+      const outputInput = document.getElementById('output-dir') as HTMLInputElement | null;
+      if (outputInput) outputInput.value = projectDir;
       document.getElementById('audio-loaded')?.removeAttribute('hidden');
       setStatus('audio-status', 'neutral', 'Prêt');
     } catch (err: any) {
@@ -112,7 +114,8 @@ export function mountAudioHooks(): void {
     }));
     appendLog('audio-logs', `→ Optimisation de ${selectedTracks.length} piste(s)`);
     try {
-      const response: OptimizationResponse = await optimizeAudio(selectedTracks);
+      const outputDir = (document.getElementById('output-dir') as HTMLInputElement)?.value?.trim() || '';
+      const response: OptimizationResponse = await optimizeAudio(selectedTracks, outputDir);
       setStatus('audio-status', 'positive', 'Terminé');
       appendLog('audio-logs', `✓ ${response.optimizedTracks?.length || 0} piste(s) optimisée(s) (${response.processingTime}s)`);
     } catch (err: any) {

@@ -12,12 +12,10 @@ import type { AudioClipInfo, OptimizationResponse } from '@/core/types';
  * Load audio tracks from active sequence
  * Used by: audioHooks.onLoadTracks()
  */
-export async function loadAudioTracks(): Promise<Array<{
-  id: number;
-  name: string;
-  duration: string;
-  clips: number;
-}>> {
+export async function loadAudioTracks(): Promise<{
+  tracks: Array<{ id: number; name: string; duration: string; clips: number }>;
+  projectDir: string;
+}> {
   console.log("[JOB] loadAudioTracks() started");
 
   try {
@@ -63,8 +61,11 @@ export async function loadAudioTracks(): Promise<Array<{
       }
     }
 
+    const project = await premiereProAPI.getActiveProject();
+    const projectDir = project.path.split('/').slice(0, -1).join('/');
+
     console.log("[JOB] loadAudioTracks() completed");
-    return tracksWithMetadata;
+    return { tracks: tracksWithMetadata, projectDir };
 
   } catch (error) {
     console.error("[JOB] loadAudioTracks() failed:", error);
@@ -84,7 +85,8 @@ export async function loadAudioTracks(): Promise<Array<{
  * 5. Return response
  */
 export async function optimizeAudio(
-  selectedTracks: Array<{ index: number; filterType: 'voice' | 'music' | 'sound_effects' }>
+  selectedTracks: Array<{ index: number; filterType: 'voice' | 'music' | 'sound_effects' }>,
+  outputDir: string
 ): Promise<OptimizationResponse> {
   console.log(`[JOB] optimizeAudio() started with ${selectedTracks.length} track(s)`);
 
@@ -120,7 +122,7 @@ export async function optimizeAudio(
 
     // 4. Import optimized clips into a new audio track in Premiere Pro
     console.log("[JOB] Importing optimized clips into Premiere Pro...");
-    await premiereProAPI.importOptimizedClips(response.optimizedTracks!);
+    await premiereProAPI.importOptimizedClips(response.optimizedTracks!, outputDir);
 
     console.log("[JOB] optimizeAudio() completed");
     return response;
