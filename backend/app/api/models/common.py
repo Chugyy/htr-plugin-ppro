@@ -155,3 +155,22 @@ class IdResponse(BaseSchema):
         }
     """
     id: int = Field(..., description="ID of created resource")
+
+
+# =====================================================
+# TASK / QUEUE
+# =====================================================
+
+class TaskStatusResponse(BaseSchema):
+    """Status of a queued task."""
+    task_id: str = Field(..., description="Unique task identifier")
+    status: str = Field(..., description="pending | running | done | failed")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    created_at: float = Field(..., description="Unix timestamp of creation")
+    started_at: Optional[float] = Field(None, description="Unix timestamp when started")
+    completed_at: Optional[float] = Field(None, description="Unix timestamp when completed")
+
+
+class QueueStatusResponse(BaseSchema):
+    """Status snapshot of all queues."""
+    queues: dict = Field(..., description="Queue name → {pending, running, total_tracked}")

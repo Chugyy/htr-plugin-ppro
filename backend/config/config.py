@@ -28,6 +28,21 @@ class Settings(BaseSettings):
     # Transcription Services
     assemblyai_api_key: str = Field("", env="ASSEMBLYAI_API_KEY")
 
+    # Audio Optimization
+    max_concurrent_ffmpeg: int = Field(4, env="MAX_CONCURRENT_FFMPEG")
+    chunk_duration_seconds: int = Field(60, env="CHUNK_DURATION_SECONDS")
+
+    # Queue & Concurrency
+    max_concurrent_transcriptions: int = Field(2, env="MAX_CONCURRENT_TRANSCRIPTIONS")
+    max_concurrent_optimizations: int = Field(2, env="MAX_CONCURRENT_OPTIMIZATIONS")
+    max_queue_size: int = Field(10, env="MAX_QUEUE_SIZE")
+
+    # Rate Limiting
+    rate_limit_transcription: int = Field(5, env="RATE_LIMIT_TRANSCRIPTION_PER_MIN")
+    rate_limit_correction: int = Field(20, env="RATE_LIMIT_CORRECTION_PER_MIN")
+    rate_limit_optimization: int = Field(5, env="RATE_LIMIT_OPTIMIZATION_PER_MIN")
+    rate_limit_upload: int = Field(10, env="RATE_LIMIT_UPLOAD_PER_MIN")
+
     # LLM Services
     anthropic_api_key: str = Field("", env="ANTHROPIC_API_KEY")
     openai_api_key: str = Field("", env="OPENAI_API_KEY")

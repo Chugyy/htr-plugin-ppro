@@ -6,9 +6,10 @@ import uuid
 import logging
 import time
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import FileResponse
 from app.api.middleware.auth import verify_api_key
+from app.api.middleware.rate_limit import check_rate_limit
 
 logger = logging.getLogger(__name__)
 from config.config import settings
@@ -21,6 +22,7 @@ from app.api.models.audio import (
     OptimizationResponse
 )
 from app.core.jobs.transcription import extract_and_transcribe, correct_french
+from app.core.services.queue import get_queue
 
 router = APIRouter(prefix="/audio", tags=["audio"])
 
@@ -28,7 +30,8 @@ router = APIRouter(prefix="/audio", tags=["audio"])
 @router.post("/upload")
 async def upload_audio(
     file: UploadFile = File(...),
-    _: str = Depends(verify_api_key)
+    _: str = Depends(verify_api_key),
+    _rl=Depends(check_rate_limit),
 ):
     """
     Upload a pre-extracted audio file for transcription.
@@ -64,7 +67,8 @@ async def download_file(
 @router.post("/transcription", response_model=TranscriptionResponse)
 async def generate_transcription(
     request: TranscriptionRequest,
-    _: str = Depends(verify_api_key)
+    _: str = Depends(verify_api_key),
+    _rl=Depends(check_rate_limit),
 ):
     """
     Generate transcription from video clips
@@ -80,7 +84,9 @@ async def generate_transcription(
 
     t0 = time.time()
     try:
-        result = await extract_and_transcribe(request.clips)
+        queue = get_queue("transcription")
+        task = await queue.submit(extract_and_transcribe, request.clips)
+        result = task.result
         logger.info(f"[TRANSCRIPTION] Done in {time.time()-t0:.2f}s | words={result.get('word_count')} | duration={result.get('duration'):.2f}s")
         return TranscriptionResponse(**result)
     except FileNotFoundError as e:
@@ -100,7 +106,8 @@ async def generate_transcription(
 @router.post("/correction", response_model=CorrectionResponse)
 async def correct_transcription(
     request: CorrectionRequest,
-    _: str = Depends(verify_api_key)
+    _: str = Depends(verify_api_key),
+    _rl=Depends(check_rate_limit),
 ):
     """
     Correct French transcription using LLM
@@ -121,7 +128,8 @@ async def correct_transcription(
 @router.post("/optimization", response_model=OptimizationResponse)
 async def optimize_audio(
     request: OptimizationRequest,
-    _: str = Depends(verify_api_key)
+    _: str = Depends(verify_api_key),
+    _rl=Depends(check_rate_limit),
 ):
     """
     Optimize audio tracks with filters based on type
@@ -136,7 +144,9 @@ async def optimize_audio(
     try:
         from app.core.jobs.optimization import optimize_tracks
 
-        result = await optimize_tracks(request.tracks)
+        queue = get_queue("optimization")
+        task = await queue.submit(optimize_tracks, request.tracks)
+        result = task.result
         return OptimizationResponse(**result)
 
     except FileNotFoundError as e:

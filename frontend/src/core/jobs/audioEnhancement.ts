@@ -100,6 +100,9 @@ export async function optimizeAudio(
     const allClips: AudioClipInfo[] = tracks.flatMap(t => t.clips);
     const processedClips = await prepareClipsForBackend(allClips);
 
+    // Calculate total audio duration for dynamic timeout
+    const totalDuration = allClips.reduce((sum, c) => sum + c.sourceDuration, 0);
+
     let clipIndex = 0;
     const tracksPayload = tracks.map(track => ({
       trackIndex: track.trackIndex,
@@ -108,8 +111,8 @@ export async function optimizeAudio(
     }));
 
     // 3. Call backend to optimize audio (clips are preextracted + uploaded)
-    console.log("[JOB] Calling backend for audio optimization...");
-    const response = await backendClient.optimizeAudio(tracksPayload);
+    console.log(`[JOB] Calling backend for audio optimization (${totalDuration.toFixed(0)}s total audio)...`);
+    const response = await backendClient.optimizeAudio(tracksPayload, totalDuration);
 
     if (!response.success || !response.optimizedTracks) {
       throw new Error(response.error || "Audio optimization failed");

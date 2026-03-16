@@ -199,15 +199,18 @@ export class BackendClient {
   }
 
   /**
-   * Optimize audio tracks with filters
+   * Optimize audio tracks with filters.
+   * Timeout scales with total audio duration: max(60s, totalDuration × 1.5).
    */
   async optimizeAudio(
     tracks: Array<{
       trackIndex: number;
       filterType: 'voice' | 'music' | 'sound_effects';
       clips: AudioClipInfo[];
-    }>
+    }>,
+    totalDurationSeconds: number = 300
   ): Promise<OptimizationResponse> {
+    const timeout = Math.max(60_000, totalDurationSeconds * 1_500);
     return this.request({
       method: "POST",
       endpoint: "/audio/optimization",
@@ -225,7 +228,7 @@ export class BackendClient {
           })),
         })),
       },
-      timeout: 300000  // 5 minutes
+      timeout,
     });
   }
 

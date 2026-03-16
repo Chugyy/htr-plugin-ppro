@@ -3,7 +3,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import health, audio, auth
+from app.api.routes import health, audio, auth, tasks
 from config.config import settings
 from config.logger import logger
 import uvicorn
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(audio.router)
+app.include_router(tasks.router)
 
 @app.get("/")
 async def root():

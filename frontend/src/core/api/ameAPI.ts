@@ -76,38 +76,57 @@ export async function exportAudioSegment(
 
   const inTickTime = ppro.TickTime.createWithSeconds(inPoint);
   const outTickTime = ppro.TickTime.createWithSeconds(outPoint);
+  const clipDuration = outPoint - inPoint;
 
-  console.log(`[AME] Encoding: ${clipName} (${inPoint.toFixed(2)}s → ${outPoint.toFixed(2)}s)`);
+  console.log(`[AME] Encoding: ${clipName} (${inPoint.toFixed(2)}s → ${outPoint.toFixed(2)}s, ${clipDuration.toFixed(1)}s)`);
   console.log(`[AME] Output: ${outputPath}`);
 
-  // encodeFile() returns boolean (queued), events unreliable in UXP.
-  // Use async poll loop (while + await setTimeout) — more reliable than setInterval in UXP.
   manager.encodeFile(
     sourceFilePath,
     outputPath,
     presetPath,
-    inTickTime,  // inPoint  (UXP order: inPoint before workArea)
-    outTickTime, // outPoint
-    1,           // workArea: 1 = ENCODE_IN_TO_OUT (was 0 = ENTIRE_FILE)
+    inTickTime,
+    outTickTime,
+    1,           // workArea: 1 = ENCODE_IN_TO_OUT
     false,       // removeUponCompletion
     true         // startQueueImmediately
   );
 
-  const TIMEOUT_MS = 300_000;
+  // Dynamic timeout: max(60s, clipDuration × 2) — long clips need more time
+  const TIMEOUT_MS = Math.max(60_000, clipDuration * 2_000);
   const deadline   = Date.now() + TIMEOUT_MS;
+
+  // Expected minimum file size for WAV 16kHz mono 16-bit:
+  // clipDuration × 16000 samples/s × 2 bytes/sample = clipDuration × 32000
+  const expectedMinSize = clipDuration * 32_000 * 0.8; // 80% margin for codec variations
+
+  // Poll interval: 1s for short clips, 3s for long clips (reduces false positives)
+  const POLL_INTERVAL = clipDuration > 120 ? 3_000 : 1_000;
+
+  // Stability threshold: 5 consecutive polls with same size (vs 2 before)
+  const STABLE_THRESHOLD = 5;
+
   let lastSize     = -1;
   let stableCount  = 0;
 
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 1_000));
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
     try {
       const entry = await dataFolder.getEntry(outputName);
       const meta  = await entry.getMetadata();
       const size: number = meta.size ?? 0;
-      console.log(`[AME] Poll: ${outputName} size=${size}`);
+      console.log(`[AME] Poll: ${outputName} size=${size} (expected≥${Math.round(expectedMinSize)})`);
+
       if (size > 0 && size === lastSize) {
-        if (++stableCount >= 2) {
-          console.log(`[AME] Poll: stable at ${size} bytes → done`);
+        stableCount++;
+        // Only consider done if: stable enough AND file size is plausible
+        if (stableCount >= STABLE_THRESHOLD && size >= expectedMinSize) {
+          console.log(`[AME] Poll: stable at ${size} bytes after ${stableCount} polls → done`);
+          break;
+        }
+        // Safety: if stable for a very long time but size is small, AME may have errored
+        if (stableCount >= STABLE_THRESHOLD * 3) {
+          console.warn(`[AME] Poll: file stuck at ${size} bytes (expected ≥${Math.round(expectedMinSize)}) — accepting as-is`);
           break;
         }
       } else {
@@ -120,7 +139,7 @@ export async function exportAudioSegment(
   }
 
   if (Date.now() >= deadline) {
-    throw new Error(`AME export timeout for: ${clipName}`);
+    throw new Error(`AME export timeout (${Math.round(TIMEOUT_MS / 1000)}s) for: ${clipName} (${clipDuration.toFixed(1)}s)`);
   }
 
   console.log(`[AME] Export complete: ${outputName}`);

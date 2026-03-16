@@ -219,8 +219,29 @@ async function scanItemsIntoMap(
 }
 
 /**
- * Import optimized WAV clips into a new audio track in the active sequence.
- * One new track per original track, clips placed at their original timeline positions.
+ * Find empty audio tracks in the active sequence.
+ * A track is empty when it has zero CLIP-type items.
+ */
+async function findEmptyAudioTracks(sequence: Sequence): Promise<number[]> {
+  const trackCount = await sequence.getAudioTrackCount();
+  const emptyIndices: number[] = [];
+
+  for (let i = 0; i < trackCount; i++) {
+    const track = await sequence.getAudioTrack(i);
+    const items = track.getTrackItems(1, false); // 1 = CLIP type
+    if (items.length === 0) {
+      emptyIndices.push(i);
+    }
+  }
+
+  console.log(`[PPRO] Empty audio tracks: [${emptyIndices.join(', ')}] out of ${trackCount}`);
+  return emptyIndices;
+}
+
+/**
+ * Import optimized WAV clips into the active sequence.
+ * Reuses empty audio tracks first, creates new ones only when needed.
+ * Clips are placed at their original timeline positions (synchronized alter-ego).
  */
 export async function importOptimizedClips(
   optimizedTracks: Array<{
@@ -237,79 +258,69 @@ export async function importOptimizedClips(
   outputDir: string
 ): Promise<void> {
   const { backendClient } = await import('@/core/api/backendAPI');
-  const uxp = window.require("uxp") as any;
   const project = await getActiveProject();
   const sequence = await getActiveSequence();
 
-  // 1. Download optimized files from backend to local UXP data folder
+  // 1. Download optimized files from backend
   const allServerPaths = optimizedTracks.flatMap(t => t.clips.map(c => c.optimizedPath));
-  console.log(`[PPRO:1] Downloading ${allServerPaths.length} optimized file(s) from backend...`);
+  console.log(`[PPRO:1] Downloading ${allServerPaths.length} optimized file(s)...`);
   const localPaths = await Promise.all(allServerPaths.map(p => backendClient.downloadOptimizedFile(p, outputDir)));
   const serverToLocal = new Map(allServerPaths.map((s, i) => [s, localPaths[i]]));
-  console.log(`[PPRO:1] Downloaded — local paths:`, localPaths);
 
-  // 2. Import local files into Premiere project
-  const importOk = await project.importFiles(localPaths, true);
-  console.log(`[PPRO:2] importFiles — result: ${importOk}`);
+  // 2. Import into Premiere project
+  await project.importFiles(localPaths, true);
 
-  // 3. Poll until all imported items appear in the project tree
+  // 3. Poll until all imported items appear in project tree
   const rootItem = await project.getRootItem();
   const expectedFiles = new Set(localPaths.map(p => p.split('/').pop()!));
   const itemMap = new Map<string, any>();
-  const POLL_TIMEOUT = 30_000;
-  const deadline = Date.now() + POLL_TIMEOUT;
+  const deadline = Date.now() + 30_000;
 
   while (Date.now() < deadline) {
     itemMap.clear();
     await scanItemsIntoMap(rootItem, itemMap);
-    const found = [...expectedFiles].filter(f => itemMap.has(f)).length;
-    console.log(`[PPRO:3] polling items: ${found}/${expectedFiles.size}`);
-    if (found === expectedFiles.size) break;
+    if ([...expectedFiles].every(f => itemMap.has(f))) break;
     await new Promise(r => setTimeout(r, 500));
   }
-  console.log(`[PPRO:3] itemMap ready — size: ${itemMap.size}`);
 
-  // 3. Get current track count — new tracks start after existing ones
-  console.log(`[PPRO:3] getAudioTrackCount...`);
-  const baseTrackIndex = await sequence.getAudioTrackCount();
-  console.log(`[PPRO:3] baseTrackIndex: ${baseTrackIndex}`);
+  // 4. Assign target tracks: reuse empty ones first, then overflow to new indices
+  const emptyTracks = await findEmptyAudioTracks(sequence);
+  const totalTracks = await sequence.getAudioTrackCount();
+  const trackAssignments: number[] = [];
+  let overflowOffset = 0;
 
-  console.log(`[PPRO:4] getEditor...`);
+  for (let i = 0; i < optimizedTracks.length; i++) {
+    if (i < emptyTracks.length) {
+      trackAssignments.push(emptyTracks[i]);
+    } else {
+      trackAssignments.push(totalTracks + overflowOffset);
+      overflowOffset++;
+    }
+  }
+  console.log(`[PPRO:4] Track assignments: ${optimizedTracks.map((t, i) => `Track ${t.trackIndex} → audio ${trackAssignments[i]}`).join(', ')}`);
+
+  // 5. Place clips in a single undoable transaction
   const editor = ppro.SequenceEditor.getEditor(sequence);
-  console.log(`[PPRO:4] editor:`, editor);
-
-  // 4. Place each clip on timeline in a single undoable transaction
-  console.log(`[PPRO:5] starting lockedAccess + executeTransaction...`);
   project.lockedAccess(() => {
     project.executeTransaction((compoundAction) => {
-      optimizedTracks.forEach((track, offset) => {
-        const audioTrackIndex = baseTrackIndex + offset;
+      optimizedTracks.forEach((track, i) => {
+        const audioTrackIndex = trackAssignments[i];
         track.clips.forEach((clip) => {
           const localPath = serverToLocal.get(clip.optimizedPath)!;
           const filename = localPath.split('/').pop()!;
           const projectItem = itemMap.get(filename);
-          console.log(`[PPRO:5] clip "${filename}" → projectItem:`, projectItem, `| timelineStart: ${clip.timelineStart} (${typeof clip.timelineStart}) | audioTrackIndex: ${audioTrackIndex} (${typeof audioTrackIndex})`);
           if (!projectItem) {
             console.warn(`[PPRO:5] SKIP — item not found: "${filename}"`);
             return;
           }
-          console.log(`[PPRO:5] createWithSeconds(${clip.timelineStart})...`);
           const tickTime = ppro.TickTime.createWithSeconds(clip.timelineStart);
-          console.log(`[PPRO:5] tickTime:`, tickTime);
-          console.log(`[PPRO:5] createOverwriteItemAction(projectItem, tickTime, -1, ${audioTrackIndex})...`);
-          const action = editor.createOverwriteItemAction(
-            projectItem,
-            tickTime,
-            -1,
-            audioTrackIndex
-          );
-          console.log(`[PPRO:5] action:`, action);
+          const action = editor.createOverwriteItemAction(projectItem, tickTime, -1, audioTrackIndex);
           compoundAction.addAction(action);
         });
       });
     }, "Import Optimized Audio");
   });
-  console.log(`[PPRO:6] lockedAccess done`);
+  console.log(`[PPRO:6] Import done — ${optimizedTracks.reduce((n, t) => n + t.clips.length, 0)} clip(s) placed`);
 }
 
 // ========================================
