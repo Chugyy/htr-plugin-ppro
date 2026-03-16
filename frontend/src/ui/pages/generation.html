@@ -7,7 +7,17 @@
 <div id="generation-loaded" hidden>
   <div class="section__process">
     <p id="generation-sequence-name" class="sequence-label"></p>
-    <div class="track__header">Pistes audio</div>
+
+    <!-- Speakers -->
+    <div class="track__header">Intervenants</div>
+    <div id="speaker-list" class="track__list"></div>
+    <div class="speaker-add">
+      <input id="speaker-name-input" type="text" class="speaker-add__input" placeholder="Nom de l'intervenant" />
+      <button id="btn-add-speaker" class="speaker-add__btn">+</button>
+    </div>
+
+    <!-- Tracks -->
+    <div class="track__header" style="margin-top: var(--space-md);">Pistes audio</div>
     <div id="generation-track-group" class="track__list"></div>
   </div>
 </div>
@@ -22,5 +32,7 @@
   <span class="status__dot status__dot--neutral"></span>
   <span class="status__text">Prêt</span>
 </div>
+
+<p class="section__disclaimer">Lancez la transcription uniquement lorsque votre montage est terminé. Évitez les longs silences entre les clips — un montage dynamique garantit une meilleure précision des sous-titres.</p>
 
 <div id="generation-logs" class="section__logs">Cliquez "Charger Séquence Active" pour commencer</div>

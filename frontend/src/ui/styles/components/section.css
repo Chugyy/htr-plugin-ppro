@@ -24,3 +24,12 @@
 .section__logs--success { border-left-color: var(--color-success-bg); color: #99ff99; }
 .section__logs--warning { border-left-color: var(--color-warning-bg); color: #ffcc99; }
 .section__logs--error   { border-left-color: var(--color-error-bg);   color: #ff9999; }
+
+.section__disclaimer {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: var(--space-sm);
+  line-height: 1.4;
+  margin: 0;
+}

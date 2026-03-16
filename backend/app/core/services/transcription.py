@@ -42,7 +42,12 @@ def configure_assemblyai():
     aai.settings.api_key = settings.assemblyai_api_key
 
 
-def convert_to_premiere_format(transcript: aai.Transcript, language: str = "fr-fr") -> Dict[str, Any]:
+def convert_to_premiere_format(
+    transcript: aai.Transcript,
+    language: str = "fr-fr",
+    speaker_id: str | None = None,
+    speaker_name: str | None = None,
+) -> Dict[str, Any]:
     """
     Convert AssemblyAI transcript to Premiere Pro JSON format
 
@@ -54,7 +59,7 @@ def convert_to_premiere_format(transcript: aai.Transcript, language: str = "fr-f
         Dictionary in Premiere Pro transcript format
     """
     # Generate UUID for default speaker
-    default_speaker_id = str(uuid.uuid4())
+    default_speaker_id = speaker_id or str(uuid.uuid4())
 
     premiere_format = {
         "language": language,
@@ -124,14 +129,19 @@ def convert_to_premiere_format(transcript: aai.Transcript, language: str = "fr-f
     premiere_format["speakers"] = [
         {
             "id": default_speaker_id,
-            "name": "Speaker 1"
+            "name": speaker_name or "Speaker 1"
         }
     ]
 
     return premiere_format
 
 
-async def transcribe_audio(audio_path: str, language: str = "fr") -> Dict[str, Any]:
+async def transcribe_audio(
+    audio_path: str,
+    language: str = "fr",
+    speaker_id: str | None = None,
+    speaker_name: str | None = None,
+) -> Dict[str, Any]:
     """
     Transcribe audio file using AssemblyAI and return Premiere Pro compatible JSON
 
@@ -217,7 +227,7 @@ async def transcribe_audio(audio_path: str, language: str = "fr") -> Dict[str, A
 
         # Convert to Premiere format
         language_code = f"{language}-{language}" if language else "fr-fr"
-        premiere_json = convert_to_premiere_format(transcript, language_code)
+        premiere_json = convert_to_premiere_format(transcript, language_code, speaker_id, speaker_name)
 
         # Extract metadata
         word_count = len(transcript.words) if transcript.words else 0

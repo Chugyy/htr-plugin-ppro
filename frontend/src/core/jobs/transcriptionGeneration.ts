@@ -1,12 +1,18 @@
 /**
  * Transcription Generation Job
  * Orchestrates: Premiere Pro API → Backend API → Premiere Pro API
+ * Supports multi-speaker: 1 track = 1 speaker, parallel transcription.
  */
 
 import * as premiereProAPI from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
 import { prepareClipsForBackend } from './utils';
-import type { TranscriptionResponse } from '@/core/types';
+import type { TranscriptionResponse, PremiereTranscriptJSON } from '@/core/types';
+
+export interface TrackSpeakerAssignment {
+  trackIndex: number;
+  speaker: { id: string; name: string };
+}
 
 /**
  * Load active Premiere Pro sequence and extract audio tracks
@@ -40,7 +46,6 @@ export async function loadActiveSequence(): Promise<{
         });
       } catch (error) {
         console.error(`[JOB] Failed to analyze track ${track.index}:`, error);
-        // Add track with 0 clips
         tracksWithClipCount.push({
           id: track.index,
           name: track.name,
@@ -50,10 +55,7 @@ export async function loadActiveSequence(): Promise<{
     }
 
     console.log("[JOB] loadActiveSequence() completed");
-    return {
-      sequenceName,
-      tracks: tracksWithClipCount
-    };
+    return { sequenceName, tracks: tracksWithClipCount };
 
   } catch (error) {
     console.error("[JOB] loadActiveSequence() failed:", error);
@@ -62,56 +64,50 @@ export async function loadActiveSequence(): Promise<{
 }
 
 /**
- * Generate transcription for selected tracks
- * Used by: generationHooks.onGenerate()
- *
- * Orchestration:
- * 1. Get tracks from selected indices
- * 2. Extract audio clips from tracks
- * 3. Call backend to generate transcription
- * 4. Import transcript back to Premiere Pro
- * 5. Return response
+ * Generate transcription for selected tracks with speaker assignments.
+ * Each track is transcribed independently (parallel) then merged into one JSON.
  */
 export async function generateTranscription(
-  selectedTrackIndices: number[]
+  assignments: TrackSpeakerAssignment[]
 ): Promise<TranscriptionResponse> {
-  console.log(`[JOB] generateTranscription() started with tracks: ${selectedTrackIndices}`);
+  console.log(`[JOB] generateTranscription() started with ${assignments.length} track(s)`);
 
   try {
-    // 1. Analyze selected tracks
-    const tracks = await premiereProAPI.analyzeMultipleAudioTracks(selectedTrackIndices);
-    console.log(`[JOB] Analyzed ${tracks.length} tracks`);
+    // 1. Process each track independently in parallel
+    const trackResults = await Promise.all(
+      assignments.map(async ({ trackIndex, speaker }) => {
+        console.log(`[JOB] Processing track ${trackIndex} → speaker "${speaker.name}"`);
 
-    // 2. Extract all clips from tracks
-    const clips = await premiereProAPI.extractAudioClips(tracks);
-    console.log(`[JOB] Extracted ${clips.length} clips`);
+        const tracks = await premiereProAPI.analyzeMultipleAudioTracks([trackIndex]);
+        const clips = await premiereProAPI.extractAudioClips(tracks);
 
-    if (clips.length === 0) {
+        if (clips.length === 0) {
+          console.warn(`[JOB] Track ${trackIndex} has no clips, skipping`);
+          return null;
+        }
+
+        const processedClips = await prepareClipsForBackend(clips);
+        const response = await backendClient.generateTranscription(processedClips, true, speaker);
+        console.log(`[JOB] Track ${trackIndex} done: ${response.wordCount} words, ${response.duration}s`);
+        return response;
+      })
+    );
+
+    // 2. Filter out null results (empty tracks)
+    const validResults = trackResults.filter((r): r is TranscriptionResponse => r !== null);
+
+    if (validResults.length === 0) {
       throw new Error("No audio clips found in selected tracks");
     }
 
-    // 3. Export via AME + upload to backend (shared utility)
-    const processedClips = await prepareClipsForBackend(clips);
+    // 3. Merge results into single Premiere JSON
+    const merged = mergeTranscriptions(validResults);
+    console.log(`[JOB] Merged: ${merged.wordCount} words, ${merged.duration}s, ${merged.transcriptionJson.speakers.length} speaker(s)`);
 
-    // 4. Call backend to generate transcription (audio already extracted)
-    console.log("[JOB] Calling backend for transcription...");
-    const response = await backendClient.generateTranscription(processedClips, true);
-
-    if (!response.transcriptionJson) {
-      throw new Error("Transcription generation failed");
-    }
-
-    console.log(`[JOB] Transcription generated successfully`);
-    console.log(`[JOB] - Word count: ${response.wordCount}`);
-    console.log(`[JOB] - Duration: ${response.duration}s`);
-
-    // 4. Import transcript to Premiere Pro
-    // Get active sequence as clip project item
+    // 4. Import to Premiere Pro
     const sequence = await premiereProAPI.getActiveSequence();
     const project = await premiereProAPI.getActiveProject();
     const rootItem = await project.getRootItem();
-
-    // Find sequence in project items
     const items = await rootItem.getItems();
     let sequenceClipItem = null;
 
@@ -125,17 +121,50 @@ export async function generateTranscription(
 
     if (sequenceClipItem) {
       console.log("[JOB] Importing transcript to sequence...");
-      await premiereProAPI.importTranscript(response.transcriptionJson, sequenceClipItem);
+      await premiereProAPI.importTranscript(merged.transcriptionJson, sequenceClipItem);
       console.log("[JOB] Transcript imported successfully");
     } else {
       console.warn("[JOB] Could not find sequence clip item for import");
     }
 
     console.log("[JOB] generateTranscription() completed");
-    return response;
+    return merged;
 
   } catch (error) {
     console.error("[JOB] generateTranscription() failed:", error);
     throw error;
   }
+}
+
+/**
+ * Merge multiple single-speaker transcriptions into one multi-speaker JSON.
+ * Segments are sorted by start time. Speakers array is deduplicated by ID.
+ */
+function mergeTranscriptions(results: TranscriptionResponse[]): TranscriptionResponse {
+  if (results.length === 1) return results[0];
+
+  const allSegments = results.flatMap(r => r.transcriptionJson.segments);
+  allSegments.sort((a, b) => a.start - b.start);
+
+  const speakerMap = new Map<string, { id?: string; name?: string }>();
+  for (const r of results) {
+    for (const s of r.transcriptionJson.speakers) {
+      if (s.id && !speakerMap.has(s.id)) {
+        speakerMap.set(s.id, s);
+      }
+    }
+  }
+
+  const merged: PremiereTranscriptJSON = {
+    language: results[0].transcriptionJson.language,
+    segments: allSegments,
+    speakers: Array.from(speakerMap.values()),
+  };
+
+  return {
+    transcriptionJson: merged,
+    text: results.map(r => r.text).join(' '),
+    duration: Math.max(...results.map(r => r.duration)),
+    wordCount: results.reduce((sum, r) => sum + r.wordCount, 0),
+  };
 }

@@ -48,3 +48,45 @@
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
+
+/* Speaker management */
+.speaker-add {
+  display: flex;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0;
+}
+
+.speaker-add__input {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: var(--font-size-sm);
+}
+
+.speaker-add__btn {
+  padding: 3px 10px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.speaker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.speaker-item__remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  padding: 0 4px;
+}
+
+.speaker-item__remove:hover {
+  color: var(--color-text);
+}

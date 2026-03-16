@@ -85,7 +85,7 @@ async def generate_transcription(
     t0 = time.time()
     try:
         queue = get_queue("transcription")
-        task = await queue.submit(extract_and_transcribe, request.clips)
+        task = await queue.submit(extract_and_transcribe, request.clips, request.speaker_id, request.speaker_name)
         result = task.result
         logger.info(f"[TRANSCRIPTION] Done in {time.time()-t0:.2f}s | words={result.get('word_count')} | duration={result.get('duration'):.2f}s")
         return TranscriptionResponse(**result)

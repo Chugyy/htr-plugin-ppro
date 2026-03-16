@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # app/api/models/audio.py
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from enum import Enum
 from pydantic import BaseModel, Field
 from app.api.models.common import BaseSchema
@@ -21,6 +21,8 @@ class AudioClipDTO(BaseSchema):
 class TranscriptionRequest(BaseSchema):
     """Request to generate transcription from clips"""
     clips: List[AudioClipDTO] = Field(..., description="List of video clips to transcribe")
+    speaker_id: Optional[str] = Field(None, description="Speaker UUID for multi-speaker transcription")
+    speaker_name: Optional[str] = Field(None, description="Speaker display name")
 
 
 class TranscriptionResponse(BaseSchema):

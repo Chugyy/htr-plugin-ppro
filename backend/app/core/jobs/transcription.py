@@ -7,12 +7,7 @@ from difflib import SequenceMatcher
 from typing import List, Dict, Any
 from pathlib import Path
 from app.api.models.audio import AudioClipDTO
-from app.core.services.audio import (
-    extract_audio_segment,
-    combine_audio_timeline,
-    ClipTimelineInfo,
-    get_audio_duration
-)
+from app.core.services.audio import get_audio_duration
 from app.core.services.transcription import transcribe_audio, adjust_timestamps_to_timeline
 from app.core.services.smart_corrector import smart_correct_french
 from app.core.jobs.utils import resolve_clip_audio
@@ -20,100 +15,74 @@ from app.core.jobs.utils import resolve_clip_audio
 logger = logging.getLogger(__name__)
 
 
-async def extract_and_transcribe(clips: List[AudioClipDTO]) -> Dict[str, Any]:
+async def extract_and_transcribe(
+    clips: List[AudioClipDTO],
+    speaker_id: str | None = None,
+    speaker_name: str | None = None,
+) -> Dict[str, Any]:
     """
-    Extract audio from clips, combine, transcribe and cleanup
-
-    Args:
-        clips: List of video clips with timeline info
-
-    Returns:
-        Dict with transcription_json, text, duration, word_count
-
-    Raises:
-        FileNotFoundError: Source file not found
-        ValueError: Invalid clip data
-        RuntimeError: Processing failed
+    Transcribe each clip individually then merge results.
+    Each clip is sent to AssemblyAI independently (no combine) for precise timestamps.
+    The clip's timeline_start is used as offset to place words at their real position.
     """
     created_files: List[Path] = []
     t_start = time.time()
 
     try:
-        # Extract audio from each clip
-        clips_info: List[ClipTimelineInfo] = []
+        all_segments = []
+        all_texts = []
+        all_speakers = []
+        total_word_count = 0
+        max_duration = 0.0
 
-        for clip in clips:
+        for i, clip in enumerate(clips):
             audio_path = await resolve_clip_audio(clip, created_files)
 
-            clips_info.append(ClipTimelineInfo(
-                audio_path=audio_path,
-                clip_name=clip.clip_name,
-                timeline_start=clip.timeline_start,
-                timeline_end=clip.timeline_end
-            ))
+            logger.info(f"[JOB] Clip {i+1}/{len(clips)}: {clip.clip_name} | timeline={clip.timeline_start:.2f}s-{clip.timeline_end:.2f}s")
 
-        # Calculate timeline offset (earliest clip start position)
-        timeline_offset = min(clip.timeline_start for clip in clips)
-        logger.info(f"[JOB] Timeline offset: {timeline_offset:.2f}s | clips: {len(clips_info)}")
-
-        # Combine or use single audio
-        if len(clips_info) == 1:
-            final_audio_path = clips_info[0].audio_path
-            logger.info(f"[JOB] Single clip — skipping combine")
-        else:
-            logger.info(f"[JOB] Combining {len(clips_info)} clips...")
-            t = time.time()
-            final_audio_path = await combine_audio_timeline(
-                clips_info=clips_info,
-                output_name="combined_timeline"
+            # Transcribe this clip alone
+            result = await transcribe_audio(
+                str(audio_path), language="fr",
+                speaker_id=speaker_id, speaker_name=speaker_name,
             )
-            logger.info(f"[JOB] Combine done in {time.time()-t:.2f}s → {final_audio_path}")
-            created_files.append(final_audio_path)
+            logger.info(f"[JOB] Clip {i+1} transcribed: {result.get('word_count')} words, {result.get('duration'):.2f}s")
 
-        final_size_mb = final_audio_path.stat().st_size / 1_048_576
-        logger.info(f"[JOB] Sending to AssemblyAI: {final_audio_path.name} ({final_size_mb:.2f} MB)")
-        t = time.time()
-        # Transcribe
-        result = await transcribe_audio(str(final_audio_path), language="fr")
-        logger.info(f"[JOB] AssemblyAI done in {time.time()-t:.2f}s | words={result.get('word_count')} | duration={result.get('duration'):.2f}s")
+            # Offset timestamps to timeline position
+            adjusted = adjust_timestamps_to_timeline(result["premiere_json"], clip.timeline_start)
 
-        # Adjust timestamps to match Premiere timeline positions
-        adjusted_json = adjust_timestamps_to_timeline(
-            result["premiere_json"],
-            timeline_offset
-        )
+            all_segments.extend(adjusted.get("segments", []))
+            all_texts.append(result["text"])
+            total_word_count += result["word_count"]
+            max_duration = max(max_duration, clip.timeline_end)
 
-        # Trim hallucinations and out-of-bounds segments
+            # Collect speakers (deduplicate later)
+            for spk in adjusted.get("speakers", []):
+                if not any(s["id"] == spk["id"] for s in all_speakers):
+                    all_speakers.append(spk)
+
+        # Sort segments by timeline position
+        all_segments.sort(key=lambda s: s.get("start", 0.0))
+
+        # Build merged JSON
+        merged_json: Dict[str, Any] = {
+            "language": "fr-fr",
+            "segments": all_segments,
+            "speakers": all_speakers,
+        }
+
+        # Trim hallucinations
         video_end = max(clip.timeline_end for clip in clips)
-        adjusted_json = _trim_transcript(adjusted_json, video_end)
-        logger.info(f"[JOB] After trim: {len(adjusted_json.get('segments', []))} segments | video_end={video_end:.2f}s")
+        merged_json = _trim_transcript(merged_json, video_end)
+        logger.info(f"[JOB] Merged: {len(merged_json['segments'])} segments | {total_word_count} words | {time.time()-t_start:.2f}s")
 
-        # Verify duration consistency (drift detection)
-        audio_duration = get_audio_duration(final_audio_path)
-        transcript_duration = result["duration"]
-
-        # Log warning if duration mismatch > 1% (indicates potential drift)
-        if audio_duration > 0:
-            duration_diff_percent = abs(audio_duration - transcript_duration) / audio_duration
-            if duration_diff_percent > 0.01:
-                logger.warning(
-                    f"Duration mismatch detected: "
-                    f"audio={audio_duration:.2f}s, "
-                    f"transcript={transcript_duration:.2f}s, "
-                    f"diff={duration_diff_percent*100:.2f}%"
-                )
-
-        # Return formatted result
-        logger.info(f"[JOB] Total job time: {time.time()-t_start:.2f}s")
         return {
-            "transcription_json": adjusted_json,
-            "text": result["text"],
-            "duration": result["duration"],
-            "word_count": result["word_count"]
+            "transcription_json": merged_json,
+            "text": " ".join(all_texts),
+            "duration": max_duration,
+            "word_count": total_word_count,
         }
 
     finally:
-        # Cleanup all created files
         for file_path in created_files:
             try:
                 if file_path.exists():

@@ -138,7 +138,11 @@ export class BackendClient {
    * Pass preextracted=true when clips have been exported via AME and uploaded —
    * the backend will skip ffmpeg extraction and use the files directly.
    */
-  async generateTranscription(clips: AudioClipInfo[], preextracted = false): Promise<TranscriptionResponse> {
+  async generateTranscription(
+    clips: AudioClipInfo[],
+    preextracted = false,
+    speaker?: { id: string; name: string },
+  ): Promise<TranscriptionResponse> {
     return this.request({
       method: "POST",
       endpoint: "/audio/transcription",
@@ -151,7 +155,8 @@ export class BackendClient {
           timeline_start: clip.timelineStart,
           timeline_end: clip.timelineEnd,
           preextracted,
-        }))
+        })),
+        ...(speaker && { speaker_id: speaker.id, speaker_name: speaker.name }),
       },
       timeout: 300000 // 5 minutes
     });
