@@ -24,9 +24,9 @@ export function Pain() {
     <div className="section-wrapper !pt-16 md:!pt-24 !pb-20 md:!pb-28">
       <FadeInView>
         <SectionHeader tag="Le problème">
-          Mal transcrit.
+          Des fautes.
           <br />
-          Un client qui revient.
+          Des retours clients.
           <br />
           <em>Une heure de perdue.</em>
         </SectionHeader>

@@ -30,9 +30,10 @@ export function Hero() {
 
       <FadeInView delay={0.2}>
         <p className="mt-6 text-[16.5px] text-[var(--cream-dim)] max-w-[510px] leading-[1.65]">
-          Fini les retours clients à 23h. HTR Edit corrige vos sous-titres et
-          normalise votre audio directement dans Premiere Pro — pour que votre
-          première livraison soit la bonne.
+          Fini les retours clients à 23h.
+          <br />
+          HTR Edit corrige vos sous-titres et normalise votre audio directement
+          dans Premiere Pro — pour que votre première livraison soit la bonne.
         </p>
       </FadeInView>
 
