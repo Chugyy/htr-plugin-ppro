@@ -324,6 +324,19 @@ export async function importOptimizedClips(
 }
 
 // ========================================
+// SEQUENCE → CLIP PROJECT ITEM
+// ========================================
+
+/**
+ * Get the ClipProjectItem of the active sequence (works regardless of bin location)
+ */
+export async function getActiveSequenceClipItem(): Promise<ClipProjectItem> {
+  const sequence = await getActiveSequence();
+  const projectItem = await sequence.getProjectItem();
+  return ppro.ClipProjectItem.cast(projectItem);
+}
+
+// ========================================
 // TRANSCRIPT / CAPTIONS
 // ========================================
 

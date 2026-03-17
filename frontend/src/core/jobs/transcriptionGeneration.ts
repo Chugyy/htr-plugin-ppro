@@ -105,27 +105,10 @@ export async function generateTranscription(
     console.log(`[JOB] Merged: ${merged.wordCount} words, ${merged.duration}s, ${merged.transcriptionJson.speakers.length} speaker(s)`);
 
     // 4. Import to Premiere Pro
-    const sequence = await premiereProAPI.getActiveSequence();
-    const project = await premiereProAPI.getActiveProject();
-    const rootItem = await project.getRootItem();
-    const items = await rootItem.getItems();
-    let sequenceClipItem = null;
-
-    for (const item of items) {
-      if (item.name === sequence.name) {
-        const ppro = window.require("premierepro");
-        sequenceClipItem = ppro.ClipProjectItem.cast(item);
-        break;
-      }
-    }
-
-    if (sequenceClipItem) {
-      console.log("[JOB] Importing transcript to sequence...");
-      await premiereProAPI.importTranscript(merged.transcriptionJson, sequenceClipItem);
-      console.log("[JOB] Transcript imported successfully");
-    } else {
-      console.warn("[JOB] Could not find sequence clip item for import");
-    }
+    const sequenceClipItem = await premiereProAPI.getActiveSequenceClipItem();
+    console.log("[JOB] Importing transcript to sequence...");
+    await premiereProAPI.importTranscript(merged.transcriptionJson, sequenceClipItem);
+    console.log("[JOB] Transcript imported successfully");
 
     console.log("[JOB] generateTranscription() completed");
     return merged;

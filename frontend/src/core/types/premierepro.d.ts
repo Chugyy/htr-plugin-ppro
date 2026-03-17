@@ -27,6 +27,7 @@ export interface Sequence {
   getVideoTrack(index: number): Promise<VideoTrack>;
   getAudioTrack(index: number): Promise<AudioTrack>;
   getSelection(): Promise<Selection>;
+  getProjectItem(): Promise<ProjectItem>;
 }
 
 export interface Selection {
