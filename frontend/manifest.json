@@ -1,6 +1,6 @@
 {
-  "id": "htr-plugin-v3",
-  "name": "HTR Plugin V3",
+  "id": "htr-plugin",
+  "name": "HTR Plugin",
   "shortname": "3pstarterplugin",
   "version": "1.0.0",
   "main": "index.html",
