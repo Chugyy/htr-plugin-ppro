@@ -1,38 +1,66 @@
-<div class="section__input">
-  <div class="field">
-    <button id="btn-load-generation" class="btn">Charger Séquence Active</button>
+<!-- ── Étape 1 : Charger la séquence ──────────────────────── -->
+<div class="step">
+  <div class="step__row">
+    <div class="step__text">
+      <div class="step__title">Charger la séquence</div>
+      <p class="step__desc">Importez la séquence active de votre timeline Premiere Pro pour analyser les pistes audio disponibles.</p>
+    </div>
+    <div id="btn-load-generation" class="btn" role="button" tabindex="0">
+      <span class="btn__icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l3-9 4 18 3-9h4"/>
+        </svg>
+      </span>
+      Charger
+    </div>
   </div>
 </div>
 
 <div id="generation-loaded" hidden>
-  <div class="section__process">
+
+  <!-- ── Étape 2 : Intervenants ────────────────────────────── -->
+  <div class="step">
     <p id="generation-sequence-name" class="sequence-label"></p>
 
-    <!-- Speakers -->
-    <div class="track__header">Intervenants</div>
-    <div id="speaker-list" class="track__list"></div>
-    <div class="speaker-add">
-      <input id="speaker-name-input" type="text" class="speaker-add__input" placeholder="Nom de l'intervenant" />
-      <button id="btn-add-speaker" class="speaker-add__btn">+</button>
+    <div class="step__text">
+      <div class="step__title">Intervenants</div>
+      <p class="step__desc">Ajoutez les personnes qui parlent dans la timeline. Chaque intervenant sera associé à une piste audio pour identifier qui dit quoi.</p>
     </div>
 
-    <!-- Tracks -->
-    <div class="track__header" style="margin-top: var(--space-md);">Pistes audio</div>
+    <div id="speaker-list" class="track__list"></div>
+
+    <div id="speaker-add-container"></div>
+  </div>
+
+  <!-- ── Étape 3 : Pistes audio ────────────────────────────── -->
+  <div class="step">
+    <div class="step__text">
+      <div class="step__title">Pistes audio</div>
+      <p class="step__desc">Sélectionnez les pistes à transcrire et assignez un intervenant à chacune. Chaque intervenant ne peut être assigné qu'à une seule piste. Si un intervenant a plusieurs pistes, regroupez ses audios sur une seule piste avant de lancer la transcription — vous pourrez les séparer ensuite.</p>
+    </div>
+
     <div id="generation-track-group" class="track__list"></div>
   </div>
+
+  <!-- ── Étape 4 : Lancer ──────────────────────────────────── -->
+  <div class="step">
+    <div class="step__row">
+      <div class="step__text">
+        <div class="step__title">Générer la transcription</div>
+        <p class="step__desc">Lance le processus de transcription pour les pistes sélectionnées. Le résultat sera importé directement dans la séquence.</p>
+      </div>
+      <div id="btn-generate" class="btn btn--primary btn--disabled" role="button" tabindex="0">Générer</div>
+    </div>
+  </div>
+
 </div>
 
-<div class="section__input">
-  <div class="field">
-    <button id="btn-generate" class="btn btn--primary" disabled>Générer Transcription</button>
+<!-- ── Status + Logs ───────────────────────────────────────── -->
+<div class="status-wrapper">
+  <div id="generation-status" class="status">
+    <span class="status__dot status__dot--neutral"></span>
+    <span class="status__text">Prêt</span>
   </div>
 </div>
 
-<div id="generation-status" class="status">
-  <span class="status__dot status__dot--neutral"></span>
-  <span class="status__text">Prêt</span>
-</div>
-
-<p class="section__disclaimer">Lancez la transcription uniquement lorsque votre montage est terminé. Évitez les longs silences entre les clips — un montage dynamique garantit une meilleure précision des sous-titres.</p>
-
-<div id="generation-logs" class="section__logs">Cliquez "Charger Séquence Active" pour commencer</div>
+<!-- <div id="generation-logs" class="section__logs">Cliquez "Charger" pour commencer</div> -->

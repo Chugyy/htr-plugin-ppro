@@ -1,30 +1,64 @@
-<div class="section__input">
-  <div class="field">
-    <button id="btn-load-audio" class="btn">Charger Séquence</button>
+<!-- ── Étape 1 : Charger la séquence ──────────────────────── -->
+<div class="step">
+  <div class="step__row">
+    <div class="step__text">
+      <div class="step__title">Charger la séquence</div>
+      <p class="step__desc">Importez la séquence active pour analyser les pistes audio et leur durée.</p>
+    </div>
+    <div id="btn-load-audio" class="btn" role="button" tabindex="0">
+      <span class="btn__icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="2" y1="9" x2="2" y2="15"/>
+          <line x1="6" y1="5" x2="6" y2="19"/>
+          <line x1="10" y1="2" x2="10" y2="22"/>
+          <line x1="14" y1="5" x2="14" y2="19"/>
+          <line x1="18" y1="8" x2="18" y2="16"/>
+          <line x1="22" y1="10" x2="22" y2="14"/>
+        </svg>
+      </span>
+      Charger
+    </div>
   </div>
 </div>
 
 <div id="audio-loaded" hidden>
-  <div class="section__process">
-    <div class="track__header">Pistes à optimiser</div>
+
+  <!-- ── Étape 2 : Sélectionner les pistes ─────────────────── -->
+  <div class="step">
+    <div class="step__text">
+      <div class="step__title">Pistes à optimiser</div>
+      <p class="step__desc">Cochez les pistes audio à traiter et choisissez le type de filtre pour chacune (voix, musique ou effets sonores).</p>
+    </div>
     <div id="audio-track-group" class="track__list"></div>
   </div>
 
-  <div class="field">
-    <label class="field__label" for="output-dir">Dossier de sortie</label>
-    <input id="output-dir" class="field__input" type="text" placeholder="/chemin/vers/dossier" />
+  <!-- ── Étape 3 : Dossier de sortie ──────────────────────── -->
+  <div class="step">
+    <div class="field">
+      <label class="field__label" for="output-dir">Dossier de sortie</label>
+      <div id="output-dir-container"></div>
+    </div>
+  </div>
+
+  <!-- ── Étape 4 : Lancer ──────────────────────────────────── -->
+  <div class="step">
+    <div class="step__row">
+      <div class="step__text">
+        <div class="step__title">Lancer l'optimisation</div>
+        <p class="step__desc">Traite les pistes sélectionnées avec les filtres choisis et importe les fichiers optimisés.</p>
+      </div>
+      <div id="btn-optimize" class="btn btn--primary btn--disabled" role="button" tabindex="0">Optimiser</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Status + Logs ───────────────────────────────────────── -->
+<div class="status-wrapper">
+  <div id="audio-status" class="status">
+    <span class="status__dot status__dot--neutral"></span>
+    <span class="status__text">Prêt</span>
   </div>
 </div>
 
-<div class="section__input">
-  <div class="field">
-    <button id="btn-optimize" class="btn btn--primary" disabled>Lancer l'Optimisation</button>
-  </div>
-</div>
-
-<div id="audio-status" class="status">
-  <span class="status__dot status__dot--neutral"></span>
-  <span class="status__text">Prêt</span>
-</div>
-
-<div id="audio-logs" class="section__logs">Cliquez "Charger Séquence" pour commencer</div>
+<!-- <div id="audio-logs" class="section__logs">Cliquez "Charger" pour commencer</div> -->

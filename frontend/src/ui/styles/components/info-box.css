@@ -1,7 +1,13 @@
+/* ── HTR Edit — Info box ──────────────────────────────────── */
+
 .info-box {
   font-size: var(--font-size-sm);
-  padding: 6px 10px;
-  border-left: 2px solid var(--color-success-bg);
-  color: #99ff99;
-  margin: 6px 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--success-bg);
+  border: 1px solid rgba(76, 175, 80, 0.15);
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+  color: var(--success-text);
+  line-height: 1.4;
+  margin: var(--space-xs) 0;
 }

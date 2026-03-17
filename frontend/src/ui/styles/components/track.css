@@ -1,14 +1,20 @@
+/* ── HTR Edit — Track list + Speakers ────────────────────── */
+
 .track__list {
   display: flex;
   flex-direction: column;
-  margin: 4px 0;
+  margin: var(--space-sm) 0;
 }
 
 .track__item {
   display: flex;
   flex-direction: column;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.track__item:last-child {
+  border-bottom: none;
 }
 
 .track__item__main {
@@ -17,7 +23,10 @@
   min-width: 0;
 }
 
-.track__item__main > input[type="checkbox"] { margin-right: 10px; flex-shrink: 0; }
+.track__item__main > input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-right: var(--space-sm);
+}
 
 .track__label {
   flex: 1;
@@ -26,67 +35,72 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: var(--font-size-sm);
-  color: var(--color-text);
+  color: var(--foreground);
   cursor: pointer;
   user-select: none;
 }
 
+.track__clip-count {
+  font-size: var(--font-size-xs);
+  color: var(--cream-muted);
+  margin-left: var(--space-xs);
+}
+
 .track__type-picker {
-  width: 100%;
-  padding: 3px 6px;
-  font-size: var(--font-size-sm);
-  margin-top: 5px;
+  margin-top: var(--space-sm);
+  margin-left: 22px;
+  margin-bottom: var(--space-xs);
 }
 
-.track__header {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-sm);
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
+/* ── Speakers ────────────────────────────────────────────── */
 
-/* Speaker management */
 .speaker-add {
   display: flex;
-  gap: var(--space-xs);
-  margin: var(--space-sm) 0;
+  align-items: center;
+  margin-top: var(--space-md);
 }
 
 .speaker-add__input {
   flex: 1;
-  padding: 3px 6px;
-  font-size: var(--font-size-sm);
+  margin-right: var(--space-md);
 }
 
 .speaker-add__btn {
-  padding: 3px 10px;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 7px 12px;
+}
+
+.speaker-list {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
 }
 
 .speaker-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
+  padding: 3px 10px;
+  margin-right: var(--space-xs);
+  margin-bottom: var(--space-xs);
   font-size: var(--font-size-sm);
-  color: var(--color-text);
+  color: var(--foreground);
+  background: var(--primary-bg);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-sm);
+}
+
+.speaker-item__name {
+  margin-right: 6px;
 }
 
 .speaker-item__remove {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
+  color: var(--cream-muted);
   cursor: pointer;
-  font-size: var(--font-size-sm);
-  padding: 0 4px;
+  font-size: var(--font-size-xs);
+  line-height: 1;
 }
 
 .speaker-item__remove:hover {
-  color: var(--color-text);
+  color: var(--error);
 }

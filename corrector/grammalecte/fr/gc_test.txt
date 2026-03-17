@@ -810,7 +810,7 @@
 7831      la {{2de}} fois                               ->> 2ᵈᵉ
 7832      les {{2des}}                                  ->> 2ᵈᵉˢ
 7833      c’est le {{3e}}                               ->> 3ᵉ
-7834      les {{4es}} vont en cours.                    ->> 4ᵉˢ
+7834      les {{4es}} vont en cours....                    ->> 4ᵉˢ
 7882      le {{1ier}} de chaque semaine             ->> 1ᵉʳ
 7883      les {{1 iers}}                            ->> 1ᵉʳˢ
 7884      la {{1ière}} fois, c’est la plus dure     ->> 1ʳᵉ
@@ -1264,7 +1264,7 @@
 9785      {{ainsi par conséquent}}                                  ->> ainsi|donc|par conséquent|c’est pourquoi
 9786      {{au jour d’aujourd’hui}}                                 ->> aujourd’hui
 9787      {{au maximum de notre apogée}}                            ->> au maximum|à notre apogée|à notre maximum
-9788      {{actuellement en cours}}                                 ->> en cours
+9788      {{actuellement en cours...}}                                 ->> en cours...
 9789      ils sont {{actuellement en train}} de manger              ->> en train
 9790      {{comme par exemple}}                                     ->> comme|par exemple
 9791      {{donc par conséquent}}                                   ->> ainsi|donc|par conséquent|c’est pourquoi
@@ -2356,7 +2356,7 @@
 13507     sous le {{cout}} de la colère                                                 ->> coup
 13546     ils ont un {{cou}} d’avance                                       ->> coup
 13547     au {{court}} de cette journée                                     ->> cours
-13548     les exercices {{en cour}} se déroulent bien.                      ->> en cours
+13548     les exercices {{en cour}} se déroulent bien.                      ->> en cours...
 13549     elle va en {{court}} de lettres                                   ->> cours
 13550     il suit un {{court}} de physique appliquée                        ->> cours
 13551     Nous allons bientôt être à {{cours}} d’argent.                    ->> court
@@ -2409,7 +2409,7 @@
 13701     Il venait {{de temps à autres}}.                              ->> de temps à autre
 13702     {{de tan à autre}}, c’était correct de venir par ici.         ->> de temps à autre
 13712     un homme {{dénudé}} de courage                                        ->> dénué
-13765     il ne sait rien {{des}} l’affaire en cours.                           ->> dès
+13765     il ne sait rien {{des}} l’affaire en cours....                           ->> dès
 13766     il faut {{des}} à présent s’en souvenir.                              ->> dès
 13767     {{Des}} à présent                                                     ->> Dès
 13768     {{Dés}} à présent                                                     ->> Dès
@@ -3553,7 +3553,7 @@
 18030     ministère de la {{culture}}                                       ->> Culture
 18031     Il a réellement travaillé pendant deux ans au ministère des Affaires Étrangères
 18032     Ministère des Anciens combattants
-18033     Avez-vous parlé au ministre des affaires en cours.
+18033     Avez-vous parlé au ministre des affaires en cours....
 18046     C’est le {{moyen age}}, chez ces ploucs.              ->> Moyen Âge
 18047     au {{moyen âge}}                                      ->> Moyen Âge
 18058     Ça se passe en Europe du {{nord}}.                    ->> Nord
@@ -9135,7 +9135,7 @@
 38836     Certains y voient la preuve qu’il a finalement été lâché par son soutien.
 38837     Te voilà paré.
 38838     une des neuf provinces.
-38839     une intoxication en cours peut être diagnostiquée
+38839     une intoxication en cours... peut être diagnostiquée
 38840     Les bonnes gens
 38841     Il est conseiller municipal.
 38842     C’est dans la soirée que ces poursuites avaient été entamées.
@@ -9209,7 +9209,7 @@
 38916     Cela peut être vrai.
 38917     L’Écosse peut être très chaude.
 38918     L’alcool au volant peut être dangereux.
-38919     Une intoxication en cours peut être diagnostiquée.
+38919     Une intoxication en cours... peut être diagnostiquée.
 38920     Elle peut être ennuyeuse.
 38921     La lettre est à elle peut-être.
 38922     C’est elle peut-être.
@@ -9351,7 +9351,7 @@
 39058     Il y a une vacance dans notre équipe au travail.
 39059     J’ai repris ce fonds de commerce
 39060     Un fonds monétaire
-39061     Une affaire en cours.
+39061     Une affaire en cours....
 39062     Il fut traduit en cour martiale.
 39063     Donner libre cours à l’imagination
 39064     En fin de compte.
@@ -10574,7 +10574,7 @@
 40282     appuyer une décision
 40283     défrayer [quelqu’un] de ses dépenses
 40284     suivre un cours
-40285     J’ai pris des passagers en cours de route.
+40285     J’ai pris des passagers en cours... de route.
 40286     J’ai pris part à ce cours d’informatique.
 40287     avoir la situation en mains
 40288     abolir des postes

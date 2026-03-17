@@ -1,60 +1,58 @@
-/* ── Tab Nav ─────────────────────────────────────────────── */
+/* ── HTR Edit — Tabs ─────────────────────────────────────── */
+
 .tab__nav {
   display: flex;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: var(--space-lg);
+  padding: var(--space-xs);
+  margin-bottom: var(--space-md);
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 .tab__nav::-webkit-scrollbar { display: none; }
 
-/* ── Tab Item (div, not button — bypasses UXP button styles) */
 .tab__btn {
   flex: 1;
-  min-width: 90px;
+  min-width: 80px;
   flex-shrink: 0;
   background: transparent;
-  border-top: 2px solid transparent;
-  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--cream-muted);
   font-size: var(--font-size-sm);
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 9px 12px;
+  padding: 7px 14px;
   user-select: none;
-  transition: background 0.15s, color 0.15s;
+  margin-right: 6px;
 }
 
-/* ── States ──────────────────────────────────────────────── */
-.tab__btn:hover:not(.tab__btn--active) {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--color-text);
+.tab__btn:last-child {
+  margin-right: 0;
 }
 
-.tab__btn--active {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-text);
-  border-top-color: var(--color-accent);
-}
-
-/* ── Icon ────────────────────────────────────────────────── */
 .tab__icon {
   display: flex;
   align-items: center;
-  margin-right: 8px;
-  transition: opacity 0.15s;
+  margin-right: 10px;
 }
 
 .tab__icon svg {
-  stroke: var(--color-text-muted);
-  transition: stroke 0.15s;
+  stroke: currentColor;
 }
 
-.tab__btn:hover .tab__icon svg  { stroke: var(--color-text); }
-.tab__btn--active .tab__icon svg { stroke: var(--color-text); }
+.tab__btn:hover:not(.tab__btn--active) {
+  color: var(--cream-dim);
+  background: rgba(255, 255, 255, 0.03);
+}
 
-/* ── Panels ──────────────────────────────────────────────── */
-.tab__panel                     { display: none; }
-.tab__panel--active             { display: block; }
+.tab__btn--active {
+  color: var(--foreground);
+  background: var(--primary-bg);
+  border-color: var(--primary-border);
+}
+
+.tab__panel         { display: none; }
+.tab__panel--active { display: block; }

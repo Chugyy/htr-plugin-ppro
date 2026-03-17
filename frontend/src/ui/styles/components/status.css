@@ -1,23 +1,36 @@
-.status {
+/* ── HTR Edit — Status badge (centered) ──────────────────── */
+
+.status-wrapper {
   display: flex;
+  justify-content: center;
+  margin: var(--space-sm) 0;
+}
+
+.status {
+  display: inline-flex;
   align-items: center;
+  padding: 5px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  margin: 6px 0;
+  color: var(--cream-dim);
 }
 
 .status__dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #555;
   flex-shrink: 0;
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
-.status__dot--neutral  { background: #555; }
-.status__dot--positive { background: var(--color-success); }
-.status__dot--negative { background: var(--color-error); }
-.status__dot--notice   { background: #ff9800; }
+.status__dot--neutral  { background: rgba(255,255,255, 0.2); }
+.status__dot--positive { background: var(--success); }
+.status__dot--negative { background: var(--error); }
+.status__dot--notice   { background: var(--notice); }
 
-.status__text { font-size: var(--font-size-sm); }
+.status__text {
+  font-size: var(--font-size-sm);
+  color: var(--cream-dim);
+}

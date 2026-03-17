@@ -1,6 +1,7 @@
 import { loadActiveSequence, generateTranscription } from '../../core/jobs/transcriptionGeneration';
 import type { TrackSpeakerAssignment } from '../../core/jobs/transcriptionGeneration';
 import type { TranscriptionResponse } from '@/core/types';
+import { createInput, createSelect } from '@/ui/components';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -11,12 +12,32 @@ let loadedTracks: Array<{ id: number; name: string; clipCount: number }> = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+let blinkTimer: ReturnType<typeof setInterval> | null = null;
+
 function setStatus(id: string, variant: 'neutral' | 'positive' | 'negative' | 'notice', text: string): void {
   const container = document.getElementById(id);
   if (!container) return;
-  const dot = container.querySelector('.status__dot');
+  const dot = container.querySelector('.status__dot') as HTMLElement | null;
   const label = container.querySelector('.status__text');
-  if (dot) dot.className = 'status__dot status__dot--' + variant;
+
+  // Stop any previous blink
+  if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
+
+  if (dot) {
+    dot.hidden = false;
+    dot.className = 'status__dot status__dot--' + variant;
+
+    // Blink orange for "notice" (loading)
+    if (variant === 'notice') {
+      let bright = true;
+      blinkTimer = setInterval(() => {
+        dot.style.background = bright ? '#cc7a00' : '#ff9800';
+        bright = !bright;
+      }, 500);
+    } else {
+      dot.style.background = '';
+    }
+  }
   if (label) label.textContent = text;
 }
 
@@ -55,17 +76,20 @@ function renderSpeakers(): void {
   const list = document.getElementById('speaker-list');
   if (!list) return;
   list.innerHTML = '';
+  list.className = 'speaker-list';
 
   for (const speaker of speakers) {
     const item = document.createElement('div');
     item.className = 'speaker-item';
 
     const nameSpan = document.createElement('span');
+    nameSpan.className = 'speaker-item__name';
     nameSpan.textContent = speaker.name;
 
-    const removeBtn = document.createElement('button');
+    const removeBtn = document.createElement('span');
     removeBtn.className = 'speaker-item__remove';
     removeBtn.textContent = '✕';
+    removeBtn.setAttribute('role', 'button');
     removeBtn.addEventListener('click', () => removeSpeaker(speaker.id));
 
     item.appendChild(nameSpan);
@@ -90,30 +114,47 @@ function renderTrackCheckboxes(tracks: Array<{ id: number; name: string; clipCou
     cb.type = 'checkbox';
     cb.id = `gen-track-${track.id}`;
     cb.value = String(track.id);
-    cb.checked = true;
+    cb.checked = false;
     cb.addEventListener('change', () => {
-      const select = document.getElementById(`gen-speaker-${track.id}`) as HTMLSelectElement | null;
-      if (select) select.disabled = !cb.checked;
+      const sel = document.getElementById(`gen-speaker-${track.id}`) as HTMLSelectElement | null;
+      if (sel) {
+        sel.disabled = !cb.checked;
+        sel.style.opacity = cb.checked ? '1' : '0.3';
+        if (!cb.checked) sel.value = ''; // free up the speaker
+      }
+      refreshTrackDropdowns();
       updateGenerateButton();
     });
 
     const label = document.createElement('label');
     label.className = 'track__label';
     label.htmlFor = cb.id;
-    label.textContent = `${track.name} (${track.clipCount} clips)`;
+    label.textContent = track.name;
+
+    const clipCount = document.createElement('span');
+    clipCount.className = 'track__clip-count';
+    clipCount.textContent = `${track.clipCount} clip${track.clipCount !== 1 ? 's' : ''}`;
 
     const main = document.createElement('div');
     main.className = 'track__item__main';
     main.appendChild(cb);
     main.appendChild(label);
+    main.appendChild(clipCount);
 
-    const select = document.createElement('select');
-    select.className = 'track__type-picker';
-    select.id = `gen-speaker-${track.id}`;
+    const selectWrapper = createSelect({
+      id: `gen-speaker-${track.id}`,
+      options: [{ value: '', label: '— Intervenant —' }],
+    });
+    selectWrapper.style.marginLeft = '22px';
+    const select = selectWrapper.querySelector('select')!;
     populateSpeakerDropdown(select);
+    select.addEventListener('change', () => {
+      refreshTrackDropdowns();
+      updateGenerateButton();
+    });
 
     item.appendChild(main);
-    item.appendChild(select);
+    item.appendChild(selectWrapper);
     group.appendChild(item);
   }
 
@@ -122,15 +163,26 @@ function renderTrackCheckboxes(tracks: Array<{ id: number; name: string; clipCou
 
 function populateSpeakerDropdown(select: HTMLSelectElement): void {
   const currentValue = select.value;
-  select.innerHTML = '<option value="">— Aucun intervenant —</option>';
+
+  // Collect speakers already assigned in OTHER selects
+  const takenIds = new Set<string>();
+  for (const track of loadedTracks) {
+    const other = document.getElementById(`gen-speaker-${track.id}`) as HTMLSelectElement | null;
+    if (other && other !== select && other.value) {
+      takenIds.add(other.value);
+    }
+  }
+
+  select.innerHTML = '<option value="">— Intervenant —</option>';
   for (const speaker of speakers) {
+    // Skip if taken by another track (but keep if it's this select's current value)
+    if (takenIds.has(speaker.id) && speaker.id !== currentValue) continue;
     const opt = document.createElement('option');
     opt.value = speaker.id;
     opt.textContent = speaker.name;
     select.appendChild(opt);
   }
-  // Restore selection if still valid
-  if (speakers.some(s => s.id === currentValue)) {
+  if (speakers.some(s => s.id === currentValue) && !takenIds.has(currentValue)) {
     select.value = currentValue;
   }
 }
@@ -159,47 +211,67 @@ function getAssignments(): TrackSpeakerAssignment[] {
 }
 
 function updateGenerateButton(): void {
-  const btn = document.getElementById('btn-generate') as HTMLButtonElement | null;
+  const btn = document.getElementById('btn-generate');
   const assignments = getAssignments();
   if (assignments.length > 0) {
-    btn?.removeAttribute('disabled');
+    btn?.classList.remove('btn--disabled');
   } else {
-    btn?.setAttribute('disabled', '');
+    btn?.classList.add('btn--disabled');
   }
 }
 
 // ── Mount ─────────────────────────────────────────────────────────────────
 
 export function mountGenerationHooks(): void {
-  const btnLoad = document.getElementById('btn-load-generation') as HTMLButtonElement | null;
-  const btnGenerate = document.getElementById('btn-generate') as HTMLButtonElement | null;
-  const btnAddSpeaker = document.getElementById('btn-add-speaker') as HTMLButtonElement | null;
-  const speakerInput = document.getElementById('speaker-name-input') as HTMLInputElement | null;
+  const btnLoad = document.getElementById('btn-load-generation');
+  const btnGenerate = document.getElementById('btn-generate');
 
-  // Add speaker
-  btnAddSpeaker?.addEventListener('click', () => {
-    if (speakerInput?.value) {
-      addSpeaker(speakerInput.value);
-      speakerInput.value = '';
-    }
-  });
+  // Build speaker input + add button via JS (wrapper + transparent native)
+  const container = document.getElementById('speaker-add-container');
+  let speakerInputEl: HTMLInputElement | null = null;
 
-  speakerInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && speakerInput.value) {
-      addSpeaker(speakerInput.value);
-      speakerInput.value = '';
-    }
-  });
+  if (container) {
+    container.style.cssText = 'display:flex;align-items:center;margin-top:12px';
+
+    const inputWrapper = createInput({ placeholder: 'Nom de l\'intervenant' });
+    inputWrapper.style.marginRight = '12px';
+    speakerInputEl = inputWrapper.querySelector('input');
+
+    const btnAdd = document.createElement('div');
+    btnAdd.className = 'btn';
+    btnAdd.setAttribute('role', 'button');
+    btnAdd.tabIndex = 0;
+    btnAdd.textContent = '+';
+    btnAdd.style.margin = '0';
+
+    container.appendChild(inputWrapper);
+    container.appendChild(btnAdd);
+
+    btnAdd.addEventListener('click', () => {
+      if (speakerInputEl?.value) {
+        addSpeaker(speakerInputEl.value);
+        speakerInputEl.value = '';
+      }
+    });
+
+    speakerInputEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && speakerInputEl?.value) {
+        addSpeaker(speakerInputEl.value);
+        speakerInputEl.value = '';
+      }
+    });
+  }
 
   // Load sequence
   btnLoad?.addEventListener('click', async () => {
+    if (btnLoad.classList.contains('btn--disabled')) return;
     clearLog('generation-logs');
     setStatus('generation-status', 'notice', 'Chargement...');
-    btnLoad.setAttribute('disabled', '');
+    btnLoad.classList.add('btn--disabled');
     try {
       const { sequenceName, tracks } = await loadActiveSequence();
       const seqName = document.getElementById('generation-sequence-name');
-      if (seqName) seqName.textContent = `Séquence : ${sequenceName}`;
+      if (seqName) seqName.textContent = sequenceName;
       renderTrackCheckboxes(tracks);
       document.getElementById('generation-loaded')?.removeAttribute('hidden');
       setStatus('generation-status', 'neutral', 'Prêt');
@@ -207,17 +279,18 @@ export function mountGenerationHooks(): void {
       setStatus('generation-status', 'negative', err.message);
       appendLog('generation-logs', '✗ ' + err.message);
     } finally {
-      btnLoad.removeAttribute('disabled');
+      btnLoad.classList.remove('btn--disabled');
     }
   });
 
   // Generate
   btnGenerate?.addEventListener('click', async () => {
+    if (btnGenerate.classList.contains('btn--disabled')) return;
     const assignments = getAssignments();
     if (assignments.length === 0) return;
 
     setStatus('generation-status', 'notice', 'Génération en cours...');
-    btnGenerate.setAttribute('disabled', '');
+    btnGenerate.classList.add('btn--disabled');
     appendLog('generation-logs', `→ Transcription de ${assignments.length} piste(s)...`);
 
     for (const a of assignments) {
@@ -232,7 +305,7 @@ export function mountGenerationHooks(): void {
       setStatus('generation-status', 'negative', 'Erreur');
       appendLog('generation-logs', '✗ ' + err.message);
     } finally {
-      btnGenerate.removeAttribute('disabled');
+      btnGenerate.classList.remove('btn--disabled');
     }
   });
 }

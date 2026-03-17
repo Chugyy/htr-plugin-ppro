@@ -1,22 +1,64 @@
+/* ── HTR Edit — Design Tokens ────────────────────────────── */
+
 :root {
-  --color-text:          var(--uxp-host-text-color, #e0e0e0);
-  --color-text-muted:    var(--uxp-host-text-color-secondary, #808080);
-  --color-bg:            var(--uxp-host-background-color, transparent);
-  --color-border:        var(--uxp-host-border-color, rgba(255,255,255,0.08));
-  --color-accent:        #5aa7ff;
-  --color-accent-bg:     rgba(90,167,255,0.06);
-  --color-accent-border: rgba(90,167,255,0.3);
-  --color-success:       #4caf50;
-  --color-success-bg:    rgba(80,255,120,0.5);
-  --color-error:         #f44336;
-  --color-error-bg:      rgba(255,80,80,0.5);
-  --color-warning-bg:    rgba(255,180,0,0.5);
-  --font-body:           adobe-clean, sans-serif;
+  /* Core */
+  --background:          #150B1C;
+  --foreground:          #FFF5C7;
+  --cream-dim:           rgba(255,245,199, 0.72);
+  --cream-muted:         rgba(255,245,199, 0.42);
+  --gray:                rgba(255,255,255, 0.48);
+
+  /* Primary — single accent blue, always muted */
+  --primary:             #214FCF;
+  --primary-bg:          rgba(33,79,207, 0.10);
+  --primary-border:      rgba(33,79,207, 0.20);
+
+  /* Status */
+  --success:             #4caf50;
+  --success-bg:          rgba(76,175,80, 0.12);
+  --success-text:        #a8e6a3;
+  --error:               #FF6B6B;
+  --error-bg:            rgba(239,68,68, 0.10);
+  --error-text:          #ff9999;
+  --warning-bg:          rgba(255,180,0, 0.10);
+  --warning-text:        #ffcc99;
+  --notice:              #ff9800;
+
+  /* Surfaces */
+  --surface:             rgba(0,0,0, 0.20);
+  --surface-border:      rgba(255,255,255, 0.07);
+  --surface-border-hover: rgba(255,255,255, 0.14);
+
+  /* Typography */
+  --font-body:           adobe-clean, 'Noto Sans KR', sans-serif;
   --font-mono:           'Courier New', monospace;
-  --font-size-base:      12px;
+  --font-size-xs:        10px;
   --font-size-sm:        11px;
+  --font-size-base:      12px;
+  --font-size-md:        13px;
+
+  /* Spacing */
   --space-xs:            4px;
   --space-sm:            8px;
   --space-md:            12px;
   --space-lg:            20px;
+
+  /* Radius */
+  --radius-sm:           6px;
+  --radius-md:           10px;
+  --radius-lg:           14px;
+
+  /* Legacy compat */
+  --color-text:          var(--foreground);
+  --color-text-muted:    var(--cream-muted);
+  --color-bg:            var(--background);
+  --color-border:        var(--surface-border);
+  --color-accent:        var(--primary);
+  --color-accent-bg:     var(--primary-bg);
+  --color-accent-border: var(--primary-border);
+  --color-success:       var(--success);
+  --color-success-bg:    var(--success-bg);
+  --color-error:         var(--error);
+  --color-error-bg:      var(--error-bg);
+  --color-warning-bg:    var(--warning-bg);
 }

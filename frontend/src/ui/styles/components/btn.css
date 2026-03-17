@@ -1,26 +1,59 @@
-/* ── Base button ─────────────────────────────────────────── */
+/* ── HTR Edit — Button ───────────────────────────────────── */
+/* Uses <div role="button"> to bypass UXP Spectrum overrides */
+
 .btn {
-  -webkit-appearance: none;
-  appearance: none;
-  display: block;
-  background: transparent;
-  color: var(--color-text);
-  border: none;
-  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  margin: 4px 0;
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
   cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn__icon {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.btn__icon svg {
+  stroke: currentColor;
+}
+
+.btn:hover:not(.btn--disabled) {
+  border-color: var(--surface-border-hover);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn--disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Full width ──────────────────────────────────────────── */
+.btn--full {
   width: 100%;
-  padding: 6px 12px;
+  justify-content: center;
 }
 
-.btn:hover:not(:disabled) { opacity: 0.75; }
-.btn:disabled              { opacity: 0.3; cursor: not-allowed; }
-
-/* ── Variants ────────────────────────────────────────────── */
+/* ── Primary — subtle blue fill ──────────────────────────── */
 .btn--primary {
-  background: rgba(20, 115, 230, 0.15);
-  color: var(--color-accent);
+  background: var(--primary-bg);
+  border-color: var(--primary-border);
+  color: var(--foreground);
+  font-weight: 600;
 }
 
-.btn--primary:hover:not(:disabled) { opacity: 0.8; }
+.btn--primary:hover:not(.btn--disabled) {
+  background: rgba(33, 79, 207, 0.18);
+  border-color: rgba(33, 79, 207, 0.30);
+}

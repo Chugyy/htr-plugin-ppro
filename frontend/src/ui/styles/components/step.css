@@ -1,0 +1,45 @@
+/* ── HTR Edit — Step (section with text + action) ────────── */
+
+.step {
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+}
+
+/* Row layout: text left, button right — wraps on small panels */
+.step__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.step__text {
+  flex: 1;
+  min-width: 140px;
+  margin-bottom: var(--space-sm);
+}
+
+.step__row .step__text {
+  margin-right: var(--space-md);
+  margin-bottom: 0;
+}
+
+/* When the row wraps, the button goes full width */
+.step__row .btn {
+  flex-shrink: 0;
+}
+
+.step__title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 2px;
+}
+
+.step__desc {
+  font-size: var(--font-size-sm);
+  color: var(--cream-dim);
+  line-height: 1.45;
+}

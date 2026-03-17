@@ -1,14 +1,34 @@
 import { loadAudioTracks, optimizeAudio } from '../../core/jobs/audioEnhancement';
 import type { OptimizationResponse } from '@/core/types';
+import { createInput, createSelect } from '@/ui/components';
+
+// ── State ──────────────────────────────────────────────────────────────────
 
 let selectedTrackIndices: number[] = [];
+
+let blinkTimer: ReturnType<typeof setInterval> | null = null;
 
 function setStatus(id: string, variant: 'neutral' | 'positive' | 'negative' | 'notice', text: string): void {
   const container = document.getElementById(id);
   if (!container) return;
-  const dot = container.querySelector('.status__dot');
+  const dot = container.querySelector('.status__dot') as HTMLElement | null;
   const label = container.querySelector('.status__text');
-  if (dot) dot.className = 'status__dot status__dot--' + variant;
+
+  if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
+
+  if (dot) {
+    dot.hidden = false;
+    dot.className = 'status__dot status__dot--' + variant;
+    if (variant === 'notice') {
+      let bright = true;
+      blinkTimer = setInterval(() => {
+        dot.style.background = bright ? '#cc7a00' : '#ff9800';
+        bright = !bright;
+      }, 500);
+    } else {
+      dot.style.background = '';
+    }
+  }
   if (label) label.textContent = text;
 }
 
@@ -26,11 +46,11 @@ function updateAudioSelection(): void {
   selectedTrackIndices = Array.from(checkboxes)
     .filter(cb => cb.checked)
     .map(cb => Number(cb.value));
-  const btn = document.getElementById('btn-optimize') as HTMLButtonElement | null;
+  const btn = document.getElementById('btn-optimize');
   if (selectedTrackIndices.length > 0) {
-    btn?.removeAttribute('disabled');
+    btn?.classList.remove('btn--disabled');
   } else {
-    btn?.setAttribute('disabled', '');
+    btn?.classList.add('btn--disabled');
   }
 }
 
@@ -40,8 +60,8 @@ function renderAudioTrackCheckboxes(tracks: Array<{ id: number; name: string; du
   group.innerHTML = '';
   selectedTrackIndices = [];
 
-  const btn = document.getElementById('btn-optimize') as HTMLButtonElement | null;
-  btn?.setAttribute('disabled', '');
+  const btn = document.getElementById('btn-optimize');
+  btn?.classList.add('btn--disabled');
 
   for (const track of tracks) {
     const item = document.createElement('div');
@@ -56,20 +76,27 @@ function renderAudioTrackCheckboxes(tracks: Array<{ id: number; name: string; du
     const label = document.createElement('label');
     label.className = 'track__label';
     label.htmlFor = cb.id;
-    label.textContent = `${track.name} — ${track.duration} (${track.clips} clips)`;
+    label.textContent = `${track.name} — ${track.duration}`;
 
-    const select = document.createElement('select');
-    select.className = 'track__type-picker';
-    select.id = `audio-type-${track.id}`;
-    select.disabled = true;
-    select.innerHTML = `
-      <option value="voice">Voix</option>
-      <option value="music">Musique</option>
-      <option value="sound_effects">Effets sonores</option>
-    `;
+    const clipCount = document.createElement('span');
+    clipCount.className = 'track__clip-count';
+    clipCount.textContent = `${track.clips} clip${track.clips !== 1 ? 's' : ''}`;
+
+    const selectWrapper = createSelect({
+      id: `audio-type-${track.id}`,
+      options: [
+        { value: 'voice', label: 'Voix' },
+        { value: 'music', label: 'Musique' },
+        { value: 'sound_effects', label: 'Effets sonores' },
+      ],
+      disabled: true,
+    });
+    selectWrapper.style.marginLeft = '22px';
+    const selectEl = selectWrapper.querySelector('select')!;
 
     cb.addEventListener('change', () => {
-      select.disabled = !cb.checked;
+      selectEl.disabled = !cb.checked;
+      selectWrapper.style.opacity = cb.checked ? '1' : '0.35';
       updateAudioSelection();
     });
 
@@ -77,37 +104,47 @@ function renderAudioTrackCheckboxes(tracks: Array<{ id: number; name: string; du
     main.className = 'track__item__main';
     main.appendChild(cb);
     main.appendChild(label);
+    main.appendChild(clipCount);
 
     item.appendChild(main);
-    item.appendChild(select);
+    item.appendChild(selectWrapper);
     group.appendChild(item);
   }
 }
 
 export function mountAudioHooks(): void {
-  const btnLoad = document.getElementById('btn-load-audio') as HTMLButtonElement | null;
-  const btnOptimize = document.getElementById('btn-optimize') as HTMLButtonElement | null;
+  const btnLoad = document.getElementById('btn-load-audio');
+  const btnOptimize = document.getElementById('btn-optimize');
+
+  // Build output-dir input via JS (wrapper approach)
+  const outputContainer = document.getElementById('output-dir-container');
+  if (outputContainer) {
+    const outputWrapper = createInput({ id: 'output-dir', placeholder: '/chemin/vers/dossier' });
+    outputContainer.appendChild(outputWrapper);
+  }
 
   btnLoad?.addEventListener('click', async () => {
+    if (btnLoad.classList.contains('btn--disabled')) return;
     setStatus('audio-status', 'notice', 'Chargement...');
-    btnLoad.setAttribute('disabled', '');
+    btnLoad.classList.add('btn--disabled');
     try {
       const { tracks, projectDir } = await loadAudioTracks();
       renderAudioTrackCheckboxes(tracks);
-      const outputInput = document.getElementById('output-dir') as HTMLInputElement | null;
-      if (outputInput) outputInput.value = projectDir;
+      const outInput = document.getElementById('output-dir') as HTMLInputElement | null;
+      if (outInput) outInput.value = projectDir;
       document.getElementById('audio-loaded')?.removeAttribute('hidden');
       setStatus('audio-status', 'neutral', 'Prêt');
     } catch (err: any) {
       setStatus('audio-status', 'negative', err.message);
     } finally {
-      btnLoad.removeAttribute('disabled');
+      btnLoad.classList.remove('btn--disabled');
     }
   });
 
   btnOptimize?.addEventListener('click', async () => {
+    if (btnOptimize.classList.contains('btn--disabled')) return;
     setStatus('audio-status', 'notice', 'Optimisation en cours...');
-    btnOptimize.setAttribute('disabled', '');
+    btnOptimize.classList.add('btn--disabled');
     const selectedTracks = selectedTrackIndices.map(index => ({
       index,
       filterType: (document.getElementById(`audio-type-${index}`) as HTMLSelectElement)?.value as 'voice' | 'music' | 'sound_effects' ?? 'voice',
@@ -122,7 +159,7 @@ export function mountAudioHooks(): void {
       setStatus('audio-status', 'negative', 'Erreur');
       appendLog('audio-logs', '✗ ' + err.message);
     } finally {
-      btnOptimize.removeAttribute('disabled');
+      btnOptimize.classList.remove('btn--disabled');
     }
   });
 }
