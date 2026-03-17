@@ -10,26 +10,53 @@ venv/
 .env
 *.env
 .env.*
+*.local
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Temp / build
 tmp/
 temp/
 *.tmp
 dist/
+dist-ssr/
 build/
+out/
 
-# Node
+# Node / Next.js
 node_modules/
+.next/
+*.tsbuildinfo
+data/
+
+# OS
 .DS_Store
 
-# Frontend dev (localhost URLs)
+# Frontend plugin
 frontend-dev/
+ccx
+zip
+src/hybrid/win/.vs
+scripts/mac-sign.sh
+public/webview-ui/*
+.demos
+_other-bundlers
+_dummy
+vite.config.ts.timestamp*
 
 # IDE
 .vscode/
+!.vscode/extensions.json
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 

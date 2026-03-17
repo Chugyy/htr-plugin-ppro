@@ -1,8 +1,0 @@
-node_modules
-.next
-out
-build
-*.tsbuildinfo
-.env*
-.DS_Store
-data/
