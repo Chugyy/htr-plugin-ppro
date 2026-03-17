@@ -38,10 +38,10 @@ class Settings(BaseSettings):
     max_queue_size: int = Field(10, env="MAX_QUEUE_SIZE")
 
     # Rate Limiting
-    rate_limit_transcription: int = Field(5, env="RATE_LIMIT_TRANSCRIPTION_PER_MIN")
-    rate_limit_correction: int = Field(20, env="RATE_LIMIT_CORRECTION_PER_MIN")
-    rate_limit_optimization: int = Field(5, env="RATE_LIMIT_OPTIMIZATION_PER_MIN")
-    rate_limit_upload: int = Field(10, env="RATE_LIMIT_UPLOAD_PER_MIN")
+    rate_limit_transcription: int = Field(50, env="RATE_LIMIT_TRANSCRIPTION_PER_MIN")
+    rate_limit_correction: int = Field(100, env="RATE_LIMIT_CORRECTION_PER_MIN")
+    rate_limit_optimization: int = Field(50, env="RATE_LIMIT_OPTIMIZATION_PER_MIN")
+    rate_limit_upload: int = Field(100, env="RATE_LIMIT_UPLOAD_PER_MIN")
 
     # LLM Services
     anthropic_api_key: str = Field("", env="ANTHROPIC_API_KEY")
