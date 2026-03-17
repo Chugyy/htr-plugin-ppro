@@ -16,15 +16,15 @@ const FAQ_ITEMS = [
   },
   {
     q: "Mes vidéos sont-elles envoyées sur vos serveurs ?",
-    a: "Non. Seul le texte des sous-titres et les métadonnées de niveaux audio sont transmis. La vidéo elle-même ne quitte jamais votre machine.",
+    a: "Non. Vos vidéos ne quittent jamais votre machine. Seul l'audio est extrait localement pour l'analyse des niveaux, et le texte des sous-titres est envoyé pour la correction. Aucun fichier vidéo n'est transmis.",
   },
   {
     q: "Puis-je personnaliser les règles audio ?",
-    a: "Oui, à partir du plan Pro. Vous définissez vos propres seuils par type de piste, créez des presets par format (YouTube, pub, podcast), et les partagez en plan Agence.",
+    a: "Pas encore, mais c'est une feature en développement. On prévoit des compresseurs, de l'EQ, des limitateurs et des modificateurs de voix pour un contrôle total sur le mix audio.",
   },
   {
     q: "Et si l'IA fait une mauvaise correction ?",
-    a: "Chaque correction est affichée avant application. Vous validez, rejetez ou modifiez chaque suggestion. Rien n'est appliqué sans votre accord. On itère en permanence avec le retour de nos 100+ élèves.",
+    a: "Chaque correction est affichée avant application. Vous validez, rejetez ou modifiez chaque suggestion directement dans l'éditeur de texte de Premiere Pro. Les corrections sont 100% utilisables et peuvent même être exportées. Rien n'est appliqué sans votre accord.",
   },
 ];
 

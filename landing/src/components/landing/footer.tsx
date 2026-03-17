@@ -23,7 +23,9 @@ export function Footer() {
           Mentions légales
         </a>
         <a
-          href="#"
+          href="/cgv.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
           className="text-[var(--gray)] no-underline transition-colors hover:text-[var(--cream)]"
         >
           CGV

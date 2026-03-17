@@ -17,30 +17,23 @@ const PRICES = {
 };
 
 const STARTER_FEATURES = [
-  { text: "Correction ortho — 20 vidéos/mois", on: true },
-  { text: "Normalisation audio — 20 projets/mois", on: true },
-  { text: "Plugin natif Premiere Pro", on: true },
-  { text: "1 profil audio HTR", on: true },
-  { text: "Profils personnalisés", on: false },
+  { text: "20 corrections orthographiques / mois", on: true },
+  { text: "20 normalisations audio / mois", on: true },
   { text: "Support prioritaire", on: false },
 ];
 
 const PRO_FEATURES = [
-  { text: "Correction ortho — illimité", on: true, bold: true },
-  { text: "Normalisation audio — illimité", on: true, bold: true },
-  { text: "Plugin natif Premiere Pro", on: true },
-  { text: "Profils audio personnalisés", on: true },
-  { text: "Historique des corrections", on: true },
+  { text: "Corrections orthographiques — illimité", on: true, bold: true },
+  { text: "Normalisations audio — illimité", on: true, bold: true },
+  { text: "Auto-cut, colorimétrie et futures features incluses", on: true },
   { text: "Support prioritaire", on: true },
 ];
 
 const AGENCY_FEATURES = [
   "Tout le plan Pro par siège",
-  "Dashboard équipe",
-  "Règles audio partagées",
-  "Onboarding dédié",
-  "Account manager",
-  "Colorimétrie bêta incluse",
+  "Intégration personnalisée",
+  "Développement de features sur mesure",
+  "Account manager dédié",
 ];
 
 type Period = "monthly" | "yearly";

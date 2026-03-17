@@ -35,6 +35,12 @@ const TESTIMONIALS = [
     role: "Post-prod manager — Marseille",
     text: "\"On a standardisé les niveaux audio de toute l'équipe en une semaine. Plus de clients qui se plaignent du son trop fort ou trop bas. Game changer.\"",
   },
+  {
+    initials: "AD",
+    name: "Antoine D.",
+    role: "Monteur corporate — Nantes",
+    text: "\"Les noms propres, les termes techniques du client — Premiere écrivait n'importe quoi. HTR Edit corrige tout en contexte, même les acronymes métier. Mes livrables sont propres du premier coup.\"",
+  },
 ];
 
 export function Testimonials() {

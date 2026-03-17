@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import FadeInView from "@/components/animate-ui/fade-in-view";
 import { SectionHeader } from "./section-header";
-import { Pencil, Music, ScanEye } from "lucide-react";
+import { Pencil, Music, Sparkles } from "lucide-react";
 
 export function Features() {
   return (
@@ -53,44 +53,44 @@ export function Features() {
                   <div className="text-[9px] font-bold tracking-[2px] uppercase mb-1.5 text-[var(--red-label)]">
                     Transcription Premiere Pro brute
                   </div>
-                  &quot;C&apos;est{" "}
+                  &quot;On a lancé le{" "}
                   <span className="text-[var(--red-text)] border-b-[1.5px] border-dotted border-[var(--red-text)]">
-                    vrayment
+                    client client
                   </span>{" "}
-                  un outil qui va{" "}
+                  sur{" "}
                   <span className="text-[var(--red-text)] border-b-[1.5px] border-dotted border-[var(--red-text)]">
-                    vous aidé
+                    notion
                   </span>{" "}
-                  à{" "}
+                  et{" "}
                   <span className="text-[var(--red-text)] border-b-[1.5px] border-dotted border-[var(--red-text)]">
-                    progrécer
+                    discorde
                   </span>{" "}
-                  dans votre{" "}
+                  pour{" "}
                   <span className="text-[var(--red-text)] border-b-[1.5px] border-dotted border-[var(--red-text)]">
-                    carrierre
-                  </span>
-                  ...&quot;
+                    gèrer
+                  </span>{" "}
+                  le projet.&quot;
                   <div className="h-px bg-[var(--card-border-subtle)] my-3" />
                   <div className="text-[9px] font-bold tracking-[2px] uppercase mb-1.5 text-[rgba(91,141,255,0.9)]">
                     ✓ Après HTR Edit — Contextuel IA
                   </div>
-                  &quot;C&apos;est{" "}
+                  &quot;On a lancé le{" "}
                   <span className="correction-fix-inline">
-                    vraiment
+                    client
                   </span>{" "}
-                  un outil qui va{" "}
+                  sur{" "}
                   <span className="correction-fix-inline">
-                    vous aider
+                    Notion
                   </span>{" "}
-                  à{" "}
+                  et{" "}
                   <span className="correction-fix-inline">
-                    progresser
+                    Discord
                   </span>{" "}
-                  dans votre{" "}
+                  pour{" "}
                   <span className="correction-fix-inline">
-                    carrière
-                  </span>
-                  ...&quot;
+                    gérer
+                  </span>{" "}
+                  le projet.&quot;
                 </div>
               </div>
             </CardContent>
@@ -129,7 +129,7 @@ export function Features() {
           </Card>
         </FadeInView>
 
-        {/* Feature 3 — Color correction */}
+        {/* Feature 3 — Coming soon */}
         <FadeInView delay={0.2}>
           <Card className="card-base-alt relative overflow-hidden h-full">
             <span className="absolute top-4 right-5 font-black text-[68px] text-[var(--primary)] opacity-15 leading-none">
@@ -137,23 +137,31 @@ export function Features() {
             </span>
             <CardContent className="p-8">
               <FeatureIcon>
-                <ScanEye className="size-5 text-[var(--blue-light)]" />
+                <Sparkles className="size-5 text-[var(--blue-light)]" />
               </FeatureIcon>
               <div className="font-extrabold text-[23px] text-[var(--cream)] uppercase leading-tight mb-3">
-                Correction
+                Features
                 <br />
-                colorimétrique
+                à venir
               </div>
-              <p className="text-[13px] text-[var(--cream-muted)] leading-[1.65]">
-                Bientôt : analyse automatique des plans et correction
-                colorimétrique de base pour garantir une{" "}
-                <strong className="text-[var(--cream-dim)] font-semibold">
-                  cohérence visuelle
-                </strong>{" "}
-                sur toute la timeline.
-              </p>
+              <div className="flex flex-col gap-2.5">
+                {[
+                  { label: "Correction colorimétrique", desc: "Cohérence visuelle automatique sur toute la timeline" },
+                  { label: "Détourage automatique", desc: "Suppression des silences et temps morts en 1 clic" },
+                  { label: "Sous-titres animés", desc: "Animations, emojis et styles à la Submagic" },
+                  { label: "Librairie d'assets", desc: "Éléments de qualité à glisser-déposer dans vos projets" },
+                ].map((item, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <span className="text-[var(--blue-light)] text-[10px] shrink-0 mt-0.5">◆</span>
+                    <div>
+                      <div className="text-[12px] font-semibold text-[var(--cream-dim)]">{item.label}</div>
+                      <div className="text-[11px] text-[var(--gray)] leading-[1.4]">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
               <div className="inline-flex items-center gap-1.5 bg-[var(--card-bg-tag)] border border-[var(--card-border-alt)] rounded-full px-3.5 py-1.5 text-[9.5px] font-semibold text-white/30 tracking-[1.5px] uppercase mt-4">
-                🚧 Bientôt disponible
+                🚧 En développement
               </div>
             </CardContent>
           </Card>
