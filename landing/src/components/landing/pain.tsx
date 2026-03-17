@@ -24,9 +24,11 @@ export function Pain() {
     <div className="section-wrapper !pt-16 md:!pt-24 !pb-20 md:!pb-28">
       <FadeInView>
         <SectionHeader tag="Le problème">
-          Premiere Pro transcrit.
+          Mal transcrit.
           <br />
-          Il ne <em>comprend</em> pas.
+          Un client qui revient.
+          <br />
+          <em>Une heure de perdue.</em>
         </SectionHeader>
       </FadeInView>
 

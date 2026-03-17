@@ -6,13 +6,6 @@ import { ArrowRight } from "lucide-react";
 
 import { useWaitlist } from "./waitlist-modal";
 
-const PROOF_STATS = [
-  { value: "3×", label: "Moins de retours" },
-  { value: "-9dB", label: "Vocal normalisé", split: true },
-  { value: "2min", label: "Pour corriger", split: true },
-  { value: "100+", label: "Monteurs HTR", split: true },
-];
-
 export function Hero() {
   const { open } = useWaitlist();
 
@@ -37,8 +30,9 @@ export function Hero() {
 
       <FadeInView delay={0.2}>
         <p className="mt-6 text-[16.5px] text-[var(--cream-dim)] max-w-[510px] leading-[1.65]">
-          HTR Edit corrige vos sous-titres par IA et normalise vos niveaux audio
-          — directement dans Premiere Pro. Zéro retour client. Zéro temps perdu.
+          Fini les retours clients à 23h. HTR Edit corrige vos sous-titres et
+          normalise votre audio directement dans Premiere Pro — pour que votre
+          première livraison soit la bonne.
         </p>
       </FadeInView>
 
@@ -54,28 +48,7 @@ export function Hero() {
         </a>
       </FadeInView>
 
-      {/* KPIs — 2x2 grid on mobile, inline on desktop */}
-      <FadeInView delay={0.4} className="mt-8 md:mt-12">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-5 md:flex md:gap-9 md:items-center">
-          {PROOF_STATS.map((stat, i) => (
-            <div key={i} className="flex md:gap-9 items-center">
-              {stat.split && <div className="hidden md:block w-px h-[34px] bg-white/10" />}
-              <div className="text-center md:text-left">
-                <div className="font-black text-[26px] md:text-[34px] leading-none text-[var(--cream)]">
-                  <em className="text-[var(--blue-light)] not-italic">
-                    {stat.value}
-                  </em>
-                </div>
-                <div className="text-[9.5px] md:text-[10.5px] text-[var(--gray)] tracking-[1.5px] uppercase mt-0.5">
-                  {stat.label}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </FadeInView>
-
-      <FadeInView delay={0.5} className="mt-10 md:mt-16 w-full max-w-[720px] relative">
+      <FadeInView delay={0.4} className="mt-10 md:mt-16 w-full max-w-[720px] relative">
         <div className="absolute inset-[-1px] rounded-[var(--card-radius)] bg-gradient-to-br from-[rgba(91,141,255,0.22)] via-transparent to-[rgba(33,79,207,0.09)] z-0 pointer-events-none" />
         <video
           src="/demo.mp4"

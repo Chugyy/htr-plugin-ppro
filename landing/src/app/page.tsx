@@ -7,6 +7,7 @@ import { Pricing } from "@/components/landing/pricing";
 import { Testimonials } from "@/components/landing/testimonials";
 import { Faq } from "@/components/landing/faq";
 import { CtaBanner } from "@/components/landing/cta-banner";
+import { Student } from "@/components/landing/student";
 import { Footer } from "@/components/landing/footer";
 import { WaitlistProvider } from "@/components/landing/waitlist-modal";
 
@@ -24,6 +25,7 @@ export default function Home() {
         <Faq />
       </div>
       <CtaBanner />
+      <Student />
       <Footer />
     </WaitlistProvider>
   );

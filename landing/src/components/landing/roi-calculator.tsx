@@ -5,10 +5,10 @@ import FadeInView from "@/components/animate-ui/fade-in-view";
 import { Info, ArrowRight } from "lucide-react";
 
 const SLIDER_CONFIG = [
-  { id: "videos", label: "Vidéos livrées par mois", hint: "Avec sous-titres / transcription", min: 1, max: 30, step: 1, format: (v: number) => `${v}` },
+  { id: "videos", label: "Vidéos livrées par mois", hint: "Avec sous-titres / transcription", min: 1, max: 100, step: 1, format: (v: number) => `${v}` },
   { id: "rate", label: "Ton taux horaire", hint: "Marché FR freelance : 25–60€/h", min: 15, max: 90, step: 5, format: (v: number) => `${v}€` },
-  { id: "rounds", label: "Retours ortho par vidéo", hint: "Standard marché : 2–3 avant validation", min: 1, max: 5, step: 1, format: (v: number) => `${v}` },
-  { id: "mins", label: "Temps par aller-retour", hint: "Relecture + corrections + renvoi + attente", min: 15, max: 120, step: 15, format: (v: number) => `${v}min` },
+  { id: "rounds", label: "Retours ortho par vidéo", hint: "Standard marché : 2–3 avant validation", min: 1, max: 10, step: 1, format: (v: number) => `${v}` },
+  { id: "mins", label: "Temps par aller-retour", hint: "Relecture + corrections + renvoi + attente", min: 15, max: 180, step: 15, format: (v: number) => `${v}min` },
 ] as const;
 
 function useRoiCalc(videos: number, rate: number, rounds: number, mins: number) {
@@ -47,20 +47,10 @@ export function RoiCalculator() {
                 style={{ backgroundImage: "url(/pattern.svg)", backgroundSize: "cover", backgroundPosition: "center" }}
               />
               <div className="relative z-1">
-                <p className="text-[clamp(14px,3.2vw,26px)] font-bold leading-[1.35] text-[var(--cream-dim)] max-w-[560px] mx-auto">
-                  {r.cost >= 39 ? (
-                    <>
-                      <span className="whitespace-nowrap">Tu perds <span className="text-[var(--cream)]">{r.hours}h</span> et <span className="text-[var(--cream)]">{r.cost}€</span> par mois en retours.</span>
-                      <br />
-                      <span className="whitespace-nowrap">Avec HTR Edit, tu récupères <span className="text-[var(--primary)]">+{r.roi}€ net</span>.</span>
-                    </>
-                  ) : (
-                    <>
-                      HTR Edit t&apos;évite{" "}
-                      <span className="text-[var(--cream)]">{r.cost}€</span> de travail non facturé
-                      et protège ta relation client.
-                    </>
-                  )}
+                <p className="text-[clamp(16px,3.2vw,26px)] font-bold leading-[1.35] text-[var(--cream-dim)] max-w-[560px] mx-auto">
+                  Combien te coûtent vraiment tes retours clients ?
+                  <br />
+                  <span className="text-[var(--gray)] text-[clamp(12px,2vw,16px)] font-medium">Calcule en 10 secondes — et vois ce que tu récupères avec HTR Edit.</span>
                 </p>
                 <p className="text-[11px] text-[var(--gray)] mt-2.5 max-w-[420px] mx-auto leading-[1.5]">
                   Au bout de <span className="text-[var(--cream-muted)] font-medium">{r.pressure} retours/mois</span>, on estime que{" "}
@@ -122,9 +112,9 @@ export function RoiCalculator() {
 
               {/* Results */}
               <div className="flex flex-col gap-2.5 w-full md:w-[220px]">
-                <ResultCard label="Temps perdu / mois" value={`${r.hours}h`} />
-                <ResultCard label="Coût des retours / mois" value={`${r.cost}€`} />
-                <ResultCard label="ROI net avec HTR Edit" value={`+${r.roi}€`} accent />
+                <ResultCard label="Temps perdu / mois" value={`${r.hours}h`} variant="danger" />
+                <ResultCard label="Coût des retours / mois" value={`${r.cost}€`} variant="danger" />
+                <ResultCard label="ROI net avec HTR Edit" value={`+${r.roi}€`} variant="success" />
               </div>
             </div>
           </div>
@@ -144,10 +134,21 @@ export function RoiCalculator() {
   );
 }
 
-function ResultCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function ResultCard({ label, value, variant }: { label: string; value: string; variant?: "danger" | "success" }) {
+  const styles = {
+    danger: "bg-[var(--red-subtle)] border-[var(--red-border)]",
+    success: "bg-[rgba(75,222,128,0.04)] border-[rgba(75,222,128,0.18)]",
+    default: "bg-[var(--card-bg)] border-[var(--card-border-muted)]",
+  };
+  const labelStyles = {
+    danger: "text-[var(--red-text)]",
+    success: "text-[var(--green)]",
+    default: "text-[var(--gray)]",
+  };
+  const s = variant || "default";
   return (
-    <div className={`p-3.5 rounded-lg border ${accent ? "bg-[var(--blue-bg)] border-[rgba(33,79,207,0.15)]" : "bg-[var(--card-bg)] border-[var(--card-border-muted)]"}`}>
-      <div className={`text-[10px] font-bold tracking-[1.5px] uppercase mb-1.5 ${accent ? "text-[var(--primary)]" : "text-[var(--gray)]"}`}>
+    <div className={`p-3.5 rounded-lg border ${styles[s]}`}>
+      <div className={`text-[10px] font-bold tracking-[1.5px] uppercase mb-1.5 ${labelStyles[s]}`}>
         {label}
       </div>
       <div className="font-bold text-[28px] leading-none tabular-nums text-[var(--cream)]">

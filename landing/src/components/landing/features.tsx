@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import FadeInView from "@/components/animate-ui/fade-in-view";
 import { SectionHeader } from "./section-header";
-import { Pencil, Music, Sparkles } from "lucide-react";
+import { Pencil, Music } from "lucide-react";
 
 export function Features() {
   return (
@@ -129,43 +129,6 @@ export function Features() {
           </Card>
         </FadeInView>
 
-        {/* Feature 3 — Coming soon */}
-        <FadeInView delay={0.2}>
-          <Card className="card-base-alt relative overflow-hidden h-full">
-            <span className="absolute top-4 right-5 font-black text-[68px] text-[var(--primary)] opacity-15 leading-none">
-              03
-            </span>
-            <CardContent className="p-8">
-              <FeatureIcon>
-                <Sparkles className="size-5 text-[var(--blue-light)]" />
-              </FeatureIcon>
-              <div className="font-extrabold text-[23px] text-[var(--cream)] uppercase leading-tight mb-3">
-                Features
-                <br />
-                à venir
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {[
-                  { label: "Correction colorimétrique", desc: "Cohérence visuelle automatique sur toute la timeline" },
-                  { label: "Détourage automatique", desc: "Suppression des silences et temps morts en 1 clic" },
-                  { label: "Sous-titres animés", desc: "Animations, emojis et styles à la Submagic" },
-                  { label: "Librairie d'assets", desc: "Éléments de qualité à glisser-déposer dans vos projets" },
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <span className="text-[var(--blue-light)] text-[10px] shrink-0 mt-0.5">◆</span>
-                    <div>
-                      <div className="text-[12px] font-semibold text-[var(--cream-dim)]">{item.label}</div>
-                      <div className="text-[11px] text-[var(--gray)] leading-[1.4]">{item.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="inline-flex items-center gap-1.5 bg-[var(--card-bg-tag)] border border-[var(--card-border-alt)] rounded-full px-3.5 py-1.5 text-[9.5px] font-semibold text-white/30 tracking-[1.5px] uppercase mt-4">
-                🚧 En développement
-              </div>
-            </CardContent>
-          </Card>
-        </FadeInView>
       </div>
     </div>
   );

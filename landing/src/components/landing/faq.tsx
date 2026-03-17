@@ -7,6 +7,10 @@ import { SectionHeader } from "./section-header";
 
 const FAQ_ITEMS = [
   {
+    q: "Est-ce que ça fonctionne bien sur des vidéos en français, avec de l'argot ou du vocabulaire spécialisé ?",
+    a: "C'est exactement pour ça qu'HTR Edit existe. Contrairement à la transcription native de Premiere, notre IA analyse le contexte global de la vidéo avant de corriger. Elle reconnaît les noms propres, le vocabulaire métier (montage, étalonnage, DAW...), l'argot et les expressions courantes. Elle est calibrée sur du contenu francophone. Résultat : fini \"vous avez écrit Jérémi avec un i\" ou \"dépréciver\" au lieu de \"déprécier\".",
+  },
+  {
     q: "Avec quelle version de Premiere Pro ?",
     a: "HTR Edit est compatible Adobe Premiere Pro 2022 et versions supérieures, sur macOS et Windows. Il s'installe comme panneau d'extension natif.",
   },
