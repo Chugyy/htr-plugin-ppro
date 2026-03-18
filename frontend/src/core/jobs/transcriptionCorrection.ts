@@ -16,28 +16,10 @@ export async function loadExistingTranscript(): Promise<string> {
   console.log("[JOB] loadExistingTranscript() started");
 
   try {
-    // 1. Get active sequence
-    const sequence = await premiereProAPI.getActiveSequence();
-    const project = await premiereProAPI.getActiveProject();
-    const rootItem = await project.getRootItem();
+    // 1. Get active sequence clip item
+    const sequenceClipItem = await premiereProAPI.getActiveSequenceClipItem();
 
-    // 2. Find sequence in project items
-    const items = await rootItem.getItems();
-    let sequenceClipItem = null;
-
-    for (const item of items) {
-      if (item.name === sequence.name) {
-        const ppro = window.require("premierepro");
-        sequenceClipItem = ppro.ClipProjectItem.cast(item);
-        break;
-      }
-    }
-
-    if (!sequenceClipItem) {
-      throw new Error("Could not find sequence clip item");
-    }
-
-    // 3. Export transcript from sequence
+    // 2. Export transcript from sequence
     const transcriptJSON = await premiereProAPI.exportTranscript(sequenceClipItem);
 
     if (!transcriptJSON) {
@@ -75,26 +57,7 @@ export async function correctTranscription(
 
   try {
     // 1. Load existing transcript JSON from sequence
-    const sequence = await premiereProAPI.getActiveSequence();
-    const project = await premiereProAPI.getActiveProject();
-    const rootItem = await project.getRootItem();
-
-    // Find sequence in project items
-    const items = await rootItem.getItems();
-    let sequenceClipItem = null;
-
-    for (const item of items) {
-      if (item.name === sequence.name) {
-        const ppro = window.require("premierepro");
-        sequenceClipItem = ppro.ClipProjectItem.cast(item);
-        break;
-      }
-    }
-
-    if (!sequenceClipItem) {
-      throw new Error("Could not find sequence clip item");
-    }
-
+    const sequenceClipItem = await premiereProAPI.getActiveSequenceClipItem();
     const transcriptJSON = await premiereProAPI.exportTranscript(sequenceClipItem);
 
     if (!transcriptJSON) {
