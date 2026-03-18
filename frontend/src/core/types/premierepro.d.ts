@@ -13,7 +13,7 @@ export interface Project {
   path: string;
   sequences: Sequence[];
   getActiveSequence(): Promise<Sequence>;
-  getRootItem(): Promise<ProjectItem>;
+  getRootItem(): Promise<FolderItem>;
   lockedAccess(callback: () => void): void;
   executeTransaction(callback: (compoundAction: CompoundAction) => void, undoLabel?: string): boolean;
 }
@@ -73,6 +73,9 @@ export interface ComponentChain {
 export interface ProjectItem {
   name: string;
   type: number;
+}
+
+export interface FolderItem extends ProjectItem {
   getItems(): Promise<ProjectItem[]>;
 }
 
@@ -109,6 +112,9 @@ export interface PremiereProAPI {
   };
   ClipProjectItem: {
     cast(projectItem: ProjectItem): ClipProjectItem;
+  };
+  FolderItem: {
+    cast(projectItem: ProjectItem): FolderItem;
   };
   Time: {
     fromSeconds(seconds: number): Time;

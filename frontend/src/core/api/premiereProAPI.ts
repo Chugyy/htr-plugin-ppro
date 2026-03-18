@@ -201,7 +201,7 @@ export async function extractAudioClips(tracks: AudioTrackInfo[]): Promise<Audio
 
 /**
  * Recursively scan a folder item and collect all ProjectItems into a map keyed by filename.
- * TYPE_BIN = 2, TYPE_ROOT = 3 → recurse; anything else → store as clip
+ * Uses FolderItem.cast + getItems() — only recurses into actual folders.
  */
 async function scanItemsIntoMap(
   folderItem: any,
@@ -209,9 +209,10 @@ async function scanItemsIntoMap(
 ): Promise<void> {
   const items = await folderItem.getItems();
   for (const item of items) {
-    if (item.type === 2 || item.type === 3) {
-      await scanItemsIntoMap(item, map);
-    } else {
+    try {
+      const folder = ppro.FolderItem.cast(item);
+      await scanItemsIntoMap(folder, map);
+    } catch {
       console.log(`[PPRO] Scanned item: "${item.name}" (type=${item.type})`);
       map.set(item.name, item);
     }
@@ -446,41 +447,34 @@ async function scanFolderForTranscripts(
     const items = await folderItem.getItems();
 
     for (const item of items) {
-      // Check if it's a folder (bin)
-      if (item.type === 0) { // TYPE_BIN
-        // Recursive scan
-        await scanFolderForTranscripts(item, clips);
-      }
-      // Check if it's a clip
-      else if (item.type === 1) { // TYPE_CLIP
+      // Try to recurse into folders
+      try {
+        const folder = ppro.FolderItem.cast(item);
+        await scanFolderForTranscripts(folder, clips);
+        continue;
+      } catch { /* not a folder */ }
+
+      // Try as clip — check if sequence with transcript
+      try {
         const clipProjectItem = ppro.ClipProjectItem.cast(item);
+        const isSeq = await clipProjectItem.isSequence();
+        if (!isSeq) continue;
 
-        // Get content type
-        const contentType = await clipProjectItem.getContentType();
-
-        // Only check sequences (contentType === 2)
-        if (contentType === 2) {
-          try {
-            // Check if sequence has transcript
-            const transcriptJSON = await ppro.Transcript.exportToJSON(clipProjectItem);
-            if (transcriptJSON && transcriptJSON.trim() !== "") {
-              clips.push({
-                clipName: item.name,
-                clipProjectItem: clipProjectItem,
-                hasTranscript: true,
-                isSequence: true
-              });
-              console.log(`[DEBUG] Found transcript in sequence: ${item.name}`);
-            }
-          } catch (error) {
-            // No transcript in this sequence, continue
-            console.log(`[DEBUG] No transcript in sequence: ${item.name}`);
-          }
+        const transcriptJSON = await ppro.Transcript.exportToJSON(clipProjectItem);
+        if (transcriptJSON && transcriptJSON.trim() !== "") {
+          clips.push({
+            clipName: item.name,
+            clipProjectItem,
+            hasTranscript: true,
+            isSequence: true
+          });
+          console.log(`[DEBUG] Found transcript in sequence: ${item.name}`);
         }
+      } catch {
+        // Not a valid clip or no transcript
       }
     }
   } catch (error) {
     console.error("[ERROR] scanFolderForTranscripts failed:", error);
-    // Continue scanning even if one folder fails
   }
 }
