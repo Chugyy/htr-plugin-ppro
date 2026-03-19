@@ -152,18 +152,31 @@ async def correct_french(transcription_json: Dict[str, Any]) -> Dict[str, Any]:
         # Try to extract from segments
         segments = transcription_json.get("segments", [])
         if not segments:
-            raise ValueError("No text found in transcription JSON")
+            return {
+                "corrected_json": transcription_json,
+                "corrections_applied": False,
+                "model_used": "grammalecte",
+                "errors_detected": {"grammar": 0, "spelling": 0, "total": 0}
+            }
 
-        # Reconstruct text from segments
+        # Reconstruct text from segments (skip disfluency markers)
         text_parts = []
         for segment in segments:
             words = segment.get("words", [])
-            segment_text = " ".join(w.get("text", "") for w in words)
+            segment_text = " ".join(
+                w.get("text", "") for w in words
+                if "disfluency" not in w.get("tags", [])
+            )
             text_parts.append(segment_text)
         text = " ".join(text_parts)
 
-    if not text.strip():
-        raise ValueError("Empty text in transcription JSON")
+    if not text or not text.strip():
+        return {
+            "corrected_json": transcription_json,
+            "corrections_applied": False,
+            "model_used": "grammalecte",
+            "errors_detected": {"grammar": 0, "spelling": 0, "total": 0}
+        }
 
     # Call smart corrector API (with pattern protection)
     try:
@@ -183,11 +196,11 @@ async def correct_french(transcription_json: Dict[str, Any]) -> Dict[str, Any]:
 
     # Update segments if present - PRESERVE ORIGINAL TOKEN STRUCTURE
     if "segments" in corrected_json:
-        # Extract only "word" type tokens (skip punctuation) for mapping
+        # Extract only "word" type tokens (skip punctuation and disfluency) for mapping
         original_text_words = []
         for segment in transcription_json["segments"]:
             for word in segment.get("words", []):
-                if word.get("type") == "word":
+                if word.get("type") == "word" and "disfluency" not in word.get("tags", []):
                     original_text_words.append(word.get("text", ""))
 
         # Split corrected text (should have same word count if only spelling/grammar changed)
@@ -205,8 +218,10 @@ async def correct_french(transcription_json: Dict[str, Any]) -> Dict[str, Any]:
         word_index = 0
         for segment in corrected_json["segments"]:
             for word in segment.get("words", []):
-                # Skip punctuation tokens - preserve them as-is
+                # Skip punctuation and disfluency tokens - preserve them as-is
                 if word.get("type") == "punctuation":
+                    continue
+                if "disfluency" in word.get("tags", []):
                     continue
 
                 # Update word text while preserving ALL other properties

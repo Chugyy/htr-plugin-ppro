@@ -67,6 +67,9 @@ def convert_to_premiere_format(
         "speakers": []
     }
 
+    # Silence gap threshold (ms) — gaps longer than this become disfluency markers
+    GAP_THRESHOLD_MS = 300
+
     # Group words into segments (by sentence or time window)
     if not transcript.words:
         return premiere_format
@@ -74,8 +77,9 @@ def convert_to_premiere_format(
     # Create one segment per sentence or group of words
     current_segment = None
     segment_words = []
+    words = transcript.words
 
-    for word in transcript.words:
+    for idx, word in enumerate(words):
         # Start new segment if needed
         if current_segment is None:
             current_segment = {
@@ -93,6 +97,21 @@ def convert_to_premiere_format(
         # Detect if punctuation or word
         is_punctuation = word.text.strip() in string.punctuation
         word_type = "punctuation" if is_punctuation else "word"
+
+        # Insert disfluency marker if there's a silence gap before this word
+        if idx > 0:
+            prev_end = words[idx - 1].end
+            gap_ms = word.start - prev_end
+            if gap_ms >= GAP_THRESHOLD_MS:
+                segment_words.append({
+                    "confidence": 1.0,
+                    "duration": gap_ms / 1000.0,
+                    "eos": False,
+                    "start": prev_end / 1000.0,
+                    "tags": ["disfluency"],
+                    "text": "",
+                    "type": "word"
+                })
 
         # Add word to segment with all required fields
         segment_words.append({
@@ -120,7 +139,7 @@ def convert_to_premiere_format(
 
     # Add last segment if exists
     if current_segment is not None and segment_words:
-        last_word = transcript.words[-1]
+        last_word = words[-1]
         current_segment["words"] = segment_words
         current_segment["duration"] = (last_word.end / 1000.0) - current_segment["start"]
         premiere_format["segments"].append(current_segment)
