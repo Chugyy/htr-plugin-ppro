@@ -1,6 +1,5 @@
 import { loadActiveSequence, generateTranscription } from '../../core/jobs/transcriptionGeneration';
 import type { TrackSpeakerAssignment } from '../../core/jobs/transcriptionGeneration';
-import { detectSilences, removeSilencesFromTrack } from '../../core/jobs/silenceRemoval';
 import type { TranscriptionResponse } from '@/core/types';
 import { createInput, createSelect } from '@/ui/components';
 
@@ -302,9 +301,6 @@ export function mountGenerationHooks(): void {
       const response: TranscriptionResponse = await generateTranscription(assignments);
       setStatus('generation-status', 'positive', 'Terminé');
       appendLog('generation-logs', `✓ Transcription importée (${response.wordCount} mots, ${response.duration}s)`);
-
-      // Show silence removal panel
-      showSilenceRemovalPanel();
     } catch (err: any) {
       setStatus('generation-status', 'negative', 'Erreur');
       appendLog('generation-logs', '✗ ' + err.message);
@@ -312,124 +308,4 @@ export function mountGenerationHooks(): void {
       btnGenerate.classList.remove('btn--disabled');
     }
   });
-
-  // ── Silence removal ────────────────────────────────────────────────────
-
-  const btnRemoveSilences = document.getElementById('btn-remove-silences');
-
-  btnRemoveSilences?.addEventListener('click', async () => {
-    if (btnRemoveSilences.classList.contains('btn--disabled')) return;
-
-    const selected = document.querySelector<HTMLInputElement>('input[name="silence-track"]:checked');
-    if (!selected) return;
-
-    const [trackType, trackIndexStr] = selected.value.split(':');
-    const trackIndex = parseInt(trackIndexStr, 10);
-
-    setStatus('generation-status', 'notice', 'Suppression des blancs...');
-    btnRemoveSilences.classList.add('btn--disabled');
-
-    try {
-      const result = await removeSilencesFromTrack(
-        trackIndex,
-        trackType as 'audio' | 'video',
-        (_step, _total, msg) => {
-          setStatus('generation-status', 'notice', msg);
-        },
-      );
-      setStatus('generation-status', 'positive',
-        `${result.removed} silence(s) supprimé(s) (${result.durationSaved.toFixed(1)}s)`
-      );
-    } catch (err: any) {
-      setStatus('generation-status', 'negative', 'Erreur: ' + err.message);
-    } finally {
-      btnRemoveSilences.classList.remove('btn--disabled');
-    }
-  });
-}
-
-// ── Silence removal panel ────────────────────────────────────────────────────
-
-async function showSilenceRemovalPanel(): Promise<void> {
-  const panel = document.getElementById('silence-removal');
-  if (!panel) return;
-
-  try {
-    // Detect silences from transcript
-    const { silences, totalDuration } = await detectSilences();
-
-    if (silences.length === 0) {
-      panel.hidden = true;
-      return;
-    }
-
-    // Show preview
-    const preview = document.getElementById('silence-preview');
-    if (preview) {
-      preview.textContent = `${silences.length} silence(s) détecté(s) — ${totalDuration.toFixed(1)}s à supprimer`;
-    }
-
-    // Build track selector (audio + video tracks from active sequence)
-    const selector = document.getElementById('silence-track-selector');
-    if (selector) {
-      selector.innerHTML = '';
-      const { getActiveSequence } = await import('../../core/api/premiereProAPI');
-      const sequence = await getActiveSequence();
-
-      const audioCount = await sequence.getAudioTrackCount();
-      const videoCount = await sequence.getVideoTrackCount();
-
-      for (let i = 0; i < audioCount; i++) {
-        const track = await sequence.getAudioTrack(i);
-        const items = track.getTrackItems(1, false);
-        if (items.length === 0) continue;
-        selector.appendChild(createTrackRadio(
-          `audio:${i}`,
-          `${track.name || 'Audio ' + (i + 1)} (${items.length} clip${items.length > 1 ? 's' : ''})`,
-          i === 0,
-        ));
-      }
-
-      for (let i = 0; i < videoCount; i++) {
-        const track = await sequence.getVideoTrack(i);
-        const items = track.getTrackItems(1, false);
-        if (items.length === 0) continue;
-        selector.appendChild(createTrackRadio(
-          `video:${i}`,
-          `${track.name || 'Vidéo ' + (i + 1)} (${items.length} clip${items.length > 1 ? 's' : ''})`,
-          false,
-        ));
-      }
-    }
-
-    // Enable button
-    const btn = document.getElementById('btn-remove-silences');
-    btn?.classList.remove('btn--disabled');
-
-    panel.hidden = false;
-  } catch (err) {
-    console.error('[SILENCE] Failed to show panel:', err);
-  }
-}
-
-function createTrackRadio(value: string, label: string, checked: boolean): HTMLElement {
-  const item = document.createElement('div');
-  item.className = 'track__item';
-  item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0';
-
-  const radio = document.createElement('input');
-  radio.type = 'radio';
-  radio.name = 'silence-track';
-  radio.value = value;
-  radio.checked = checked;
-  radio.id = `silence-${value}`;
-
-  const lbl = document.createElement('label');
-  lbl.htmlFor = radio.id;
-  lbl.className = 'track__label';
-  lbl.textContent = label;
-
-  item.appendChild(radio);
-  item.appendChild(lbl);
-  return item;
 }

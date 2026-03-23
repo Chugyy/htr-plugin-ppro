@@ -1,0 +1,54 @@
+<!-- ── Étape 1 : Charger la séquence ──────────────────────── -->
+<div class="step">
+  <div class="step__row">
+    <div class="step__text">
+      <div class="step__title">Charger la séquence</div>
+      <p class="step__desc">Charge la séquence active et sa transcription pour détecter les silences.</p>
+    </div>
+    <div id="btn-load-derusher" class="btn" role="button" tabindex="0">
+      <span class="btn__icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l3-9 4 18 3-9h4"/>
+        </svg>
+      </span>
+      Charger
+    </div>
+  </div>
+</div>
+
+<div id="derusher-loaded" hidden>
+
+  <!-- ── Étape 2 : Sélection de la piste ───────────────────── -->
+  <div class="step">
+    <p id="derusher-sequence-name" class="sequence-label"></p>
+
+    <div class="step__text">
+      <div class="step__title">Piste à dérusher</div>
+      <p class="step__desc">Sélectionnez la piste dont vous souhaitez supprimer les silences.</p>
+    </div>
+
+    <div id="derusher-track-selector" class="track__list"></div>
+
+    <p id="derusher-preview" class="step__desc" style="margin-top:8px"></p>
+  </div>
+
+  <!-- ── Étape 3 : Lancer ──────────────────────────────────── -->
+  <div class="step">
+    <div class="step__row">
+      <div class="step__text">
+        <div class="step__title">Supprimer les blancs</div>
+        <p class="step__desc">Coupe les silences et raccorde automatiquement. Annulable via Ctrl+Z.</p>
+      </div>
+      <div id="btn-remove-silences" class="btn btn--primary btn--disabled" role="button" tabindex="0">Supprimer</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Status ───────────────────────────────────────────────── -->
+<div class="status-wrapper">
+  <div id="derusher-status" class="status">
+    <span class="status__dot status__dot--neutral"></span>
+    <span class="status__text">Prêt</span>
+  </div>
+</div>
