@@ -182,15 +182,33 @@ async function getTrackClips(sequence: any, trackIndex: number, trackType: 'audi
 // ── Edit operations ──────────────────────────────────────────────────────────
 
 async function trimStartAndShift(project: any, target: ClipInfo, clipsAfter: ClipInfo[], silence: Silence): Promise<void> {
+  // Step 1: Trim left edge
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
       ca.addAction(target.item.createSetStartAction(ppro.TickTime.createWithSeconds(silence.end)));
-      ca.addAction(target.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
-      for (const c of clipsAfter) {
-        ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
-      }
-    }, "Supprimer silence");
+    }, "Trim start");
   });
+
+  // Step 2: Move trimmed clip + clips after left (only if not at timeline origin)
+  if (silence.start > 0.05) {
+    project.lockedAccess(() => {
+      project.executeTransaction((ca: any) => {
+        ca.addAction(target.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
+        for (const c of clipsAfter) {
+          ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
+        }
+      }, "Shift left");
+    });
+  } else if (clipsAfter.length > 0) {
+    // At timeline origin: just shift subsequent clips left
+    project.lockedAccess(() => {
+      project.executeTransaction((ca: any) => {
+        for (const c of clipsAfter) {
+          ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
+        }
+      }, "Shift left");
+    });
+  }
 }
 
 async function trimEndAndShift(project: any, target: ClipInfo, clipsAfter: ClipInfo[], silence: Silence): Promise<void> {
