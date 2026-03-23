@@ -135,17 +135,37 @@ export async function removeSilencesFromTrack(
     throw new Error("Aucun segment de parole trouvé");
   }
 
-  // 3. Trim original end to where our last segment ends (removes the tail)
+  // 3. Trim original tail on audio AND video (if linked)
   const lastSeg = segments[segments.length - 1];
   const lastSegEnd = lastSeg.position + (lastSeg.srcOut - lastSeg.srcIn);
 
   onProgress?.(1, segments.length + 1, "Préparation...");
+
+  // Trim audio tail
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
       ca.addAction(clip.createSetEndAction(ppro.TickTime.createWithSeconds(lastSegEnd)));
-    }, "Trim tail");
+    }, "Trim audio tail");
   });
-  console.log(`[DERUST] Trimmed original end to ${lastSegEnd.toFixed(3)}s`);
+  console.log(`[DERUST] Trimmed audio tail to ${lastSegEnd.toFixed(3)}s`);
+
+  // Trim video tail (if source has video — linked clips)
+  const videoTrackCount = await sequence.getVideoTrackCount();
+  for (let vt = 0; vt < videoTrackCount; vt++) {
+    const vTrack = await sequence.getVideoTrack(vt);
+    const vItems = vTrack.getTrackItems(1, false);
+    for (const vItem of vItems) {
+      const vEnd = (await vItem.getEndTime()).seconds;
+      if (vEnd > lastSegEnd + 0.1) {
+        project.lockedAccess(() => {
+          project.executeTransaction((ca: any) => {
+            ca.addAction(vItem.createSetEndAction(ppro.TickTime.createWithSeconds(lastSegEnd)));
+          }, "Trim video tail");
+        });
+        console.log(`[DERUST] Trimmed video tail on V${vt + 1} from ${vEnd.toFixed(3)}s to ${lastSegEnd.toFixed(3)}s`);
+      }
+    }
+  }
 
   // 4. Overwrite each speech segment on top of the original
   for (let i = 0; i < segments.length; i++) {
