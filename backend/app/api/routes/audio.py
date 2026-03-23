@@ -19,9 +19,12 @@ from app.api.models.audio import (
     CorrectionRequest,
     CorrectionResponse,
     OptimizationRequest,
-    OptimizationResponse
+    OptimizationResponse,
+    SilenceDetectRequest,
+    SilenceDetectResponse,
 )
 from app.core.jobs.transcription import extract_and_transcribe, correct_french
+from app.core.services.silence import detect_silences
 from app.core.services.queue import get_queue
 
 router = APIRouter(prefix="/audio", tags=["audio"])
@@ -123,6 +126,32 @@ async def correct_transcription(
         raise HTTPException(status_code=500, detail=f"Correction failed: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@router.post("/silence-detect", response_model=SilenceDetectResponse)
+async def silence_detect(
+    request: SilenceDetectRequest,
+    _: str = Depends(verify_api_key),
+):
+    """
+    Detect silence regions in an audio file using ffmpeg silencedetect.
+    Returns timestamps of all silences above the given threshold and duration.
+    """
+    audio_path = Path(request.audio_path)
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {request.audio_path}")
+
+    try:
+        result = await detect_silences(
+            str(audio_path),
+            noise_threshold=request.noise_threshold,
+            min_duration=request.min_duration,
+            timeline_offset=request.timeline_offset,
+        )
+        return SilenceDetectResponse(**result)
+    except Exception as e:
+        logger.exception(f"[SILENCE] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Silence detection failed: {str(e)}")
 
 
 @router.post("/optimization", response_model=OptimizationResponse)

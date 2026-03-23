@@ -238,6 +238,26 @@ export class BackendClient {
   }
 
   /**
+   * Detect silences in an uploaded audio file using ffmpeg.
+   */
+  async detectSilences(
+    audioPath: string,
+    options?: { noiseThreshold?: number; minDuration?: number; timelineOffset?: number },
+  ): Promise<{ silences: Array<{ start: number; end: number; duration: number }>; totalSilenceDuration: number; audioDuration: number }> {
+    return this.request({
+      method: "POST",
+      endpoint: "/audio/silence-detect",
+      body: {
+        audio_path: audioPath,
+        noise_threshold: options?.noiseThreshold ?? -30,
+        min_duration: options?.minDuration ?? 0.5,
+        timeline_offset: options?.timelineOffset ?? 0,
+      },
+      timeout: 60000,
+    });
+  }
+
+  /**
    * Health check
    */
   async checkHealth(): Promise<{ status: string }> {

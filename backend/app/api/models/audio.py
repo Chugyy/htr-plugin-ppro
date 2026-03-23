@@ -90,3 +90,25 @@ class OptimizationResponse(BaseSchema):
     optimized_tracks: List[OptimizedTrackResult] = Field(..., description="List of optimized track results")
     processing_time: float = Field(..., description="Total processing time in seconds")
     output_directory: str = Field(..., description="Directory containing optimized files")
+
+
+class SilenceRegion(BaseSchema):
+    """A detected silence region"""
+    start: float = Field(..., description="Silence start in seconds")
+    end: float = Field(..., description="Silence end in seconds")
+    duration: float = Field(..., description="Silence duration in seconds")
+
+
+class SilenceDetectRequest(BaseSchema):
+    """Request to detect silences in an audio file"""
+    audio_path: str = Field(..., description="Server-side path to audio file")
+    noise_threshold: float = Field(-30.0, description="Noise threshold in dB (default: -30dB)")
+    min_duration: float = Field(0.5, description="Minimum silence duration in seconds (default: 0.5s)")
+    timeline_offset: float = Field(0.0, description="Offset to add to timestamps for timeline positioning")
+
+
+class SilenceDetectResponse(BaseSchema):
+    """Response with detected silence regions"""
+    silences: List[SilenceRegion] = Field(..., description="List of detected silence regions")
+    total_silence_duration: float = Field(..., description="Total silence duration in seconds")
+    audio_duration: float = Field(..., description="Total audio duration in seconds")

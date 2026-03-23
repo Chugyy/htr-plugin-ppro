@@ -1,74 +1,109 @@
 /**
  * Silence Removal Job
- * Detects silences from transcript disfluency markers and removes them
+ * Detects real audio silences via ffmpeg (backend) and removes them
  * from the timeline by splitting clips and ripple-shifting.
  *
- * Algorithm: process silences right-to-left so timeline shifts don't
- * invalidate positions of yet-to-be-processed silences.
+ * Flow: AME export → upload → backend silencedetect → cut timeline
  */
 
 import {
   getActiveProject,
   getActiveSequence,
-  exportTranscript,
-  getActiveSequenceClipItem,
+  analyzeAudioTrack,
 } from '../api/premiereProAPI';
-import type { PremiereTranscriptJSON } from '@/core/types';
+import { backendClient } from '../api/backendAPI';
+import { exportAudioSegment, deleteLocalFile } from '../api/ameAPI';
 
 const ppro = window.require("premierepro") as any;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface Silence {
-  start: number;   // timeline position (seconds)
+export interface Silence {
+  start: number;
   end: number;
   duration: number;
 }
 
 interface ClipInfo {
-  item: any;        // AudioClipTrackItem / VideoClipTrackItem
-  start: number;    // timeline start
-  end: number;      // timeline end
-  inPoint: number;  // source in-point
-  outPoint: number; // source out-point
+  item: any;
+  start: number;
+  end: number;
+  inPoint: number;
+  outPoint: number;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Extract silence regions from the active sequence's transcript.
+ * Detect real silences from audio on the given track.
+ * Extracts audio via AME, uploads to backend, runs ffmpeg silencedetect.
  */
-export async function detectSilences(): Promise<{ silences: Silence[]; totalDuration: number }> {
-  const clipItem = await getActiveSequenceClipItem();
-  const transcript = await exportTranscript(clipItem);
+export async function detectSilences(
+  trackIndex: number,
+  onProgress?: (msg: string) => void,
+): Promise<{ silences: Silence[]; totalDuration: number; audioDuration: number }> {
+  onProgress?.("Analyse de la piste audio...");
+  const trackInfo = await analyzeAudioTrack(trackIndex);
 
-  if (!transcript) {
-    throw new Error("No transcript found on the active sequence");
+  if (trackInfo.clips.length === 0) {
+    throw new Error("Aucun clip sur cette piste");
   }
 
-  const silences = extractSilencesFromTranscript(transcript);
-  const totalDuration = silences.reduce((sum, s) => sum + s.duration, 0);
+  // For each clip: export audio, upload, detect silences
+  const allSilences: Silence[] = [];
+  let totalAudioDuration = 0;
 
-  return { silences, totalDuration };
+  for (let i = 0; i < trackInfo.clips.length; i++) {
+    const clip = trackInfo.clips[i];
+    onProgress?.(`Export audio ${i + 1}/${trackInfo.clips.length}...`);
+
+    // Export via AME
+    const localPath = await exportAudioSegment(
+      clip.sourceFilePath,
+      clip.sourceInPoint,
+      clip.sourceOutPoint,
+      clip.clipName,
+    );
+
+    // Upload to backend
+    onProgress?.(`Upload ${i + 1}/${trackInfo.clips.length}...`);
+    const serverPath = await backendClient.uploadAudio(localPath);
+    await deleteLocalFile(localPath);
+
+    // Detect silences with timeline offset
+    onProgress?.(`Détection des silences ${i + 1}/${trackInfo.clips.length}...`);
+    const result = await backendClient.detectSilences(serverPath, {
+      timelineOffset: clip.timelineStart,
+    });
+
+    allSilences.push(...result.silences);
+    totalAudioDuration += result.audioDuration;
+  }
+
+  // Sort by start time
+  allSilences.sort((a, b) => a.start - b.start);
+  const totalDuration = allSilences.reduce((sum, s) => sum + s.duration, 0);
+
+  console.log(`[SILENCE] Detected ${allSilences.length} real silence(s), ${totalDuration.toFixed(1)}s total`);
+
+  return { silences: allSilences, totalDuration, audioDuration: totalAudioDuration };
 }
 
 /**
  * Remove silences from a single track on the active sequence.
- * Uses the transcript's disfluency markers as silence positions.
  * All operations are undoable (Ctrl+Z).
  */
 export async function removeSilencesFromTrack(
   trackIndex: number,
   trackType: 'audio' | 'video',
+  silences: Silence[],
   onProgress?: (step: number, total: number, msg: string) => void,
 ): Promise<{ removed: number; durationSaved: number }> {
-  const { silences } = await detectSilences();
-
   if (silences.length === 0) {
     return { removed: 0, durationSaved: 0 };
   }
 
-  // Sort right-to-left so shifts don't invalidate earlier positions
+  // Sort right-to-left
   const sorted = [...silences].sort((a, b) => b.start - a.start);
   const total = sorted.length;
   let removed = 0;
@@ -82,96 +117,62 @@ export async function removeSilencesFromTrack(
     const silence = sorted[i];
     onProgress?.(i + 1, total, `Silence ${i + 1}/${total} (${silence.duration.toFixed(2)}s)`);
 
-    // 1. Gather current clip state (async — outside transaction)
     const clips = await getTrackClips(sequence, trackIndex, trackType);
-
-    // Find clip that contains at least the START of this silence (tolerance 0.05s)
     const target = clips.find(c => silence.start >= c.start - 0.05 && silence.start <= c.end + 0.05);
 
     if (!target) {
-      console.warn(`[SILENCE] No clip found for silence at ${silence.start.toFixed(2)}s`);
+      console.warn(`[SILENCE] No clip for silence at ${silence.start.toFixed(2)}s — skipping`);
       continue;
     }
 
-    // Clamp silence end to clip boundary if it extends slightly beyond
+    // Clamp silence to clip boundary
     if (silence.end > target.end) {
       silence.end = target.end;
       silence.duration = silence.end - silence.start;
     }
+    if (silence.duration < 0.05) continue;
 
     const isAtStart = Math.abs(silence.start - target.start) < 0.05;
     const isAtEnd = Math.abs(silence.end - target.end) < 0.05;
-
-    // Clips AFTER this clip that need to shift left
     const clipsAfter = clips.filter(c => c.start >= target.end - 0.01 && c !== target);
 
-    if (isAtStart && isAtEnd) {
-      // Silence covers entire clip — remove it and shift
-      await removeClipAndShift(project, editor, target, clipsAfter, silence.duration);
-    } else if (isAtStart) {
-      // Silence at beginning — trim left edge, shift everything left
-      await trimStartAndShift(project, target, clipsAfter, silence);
-    } else if (isAtEnd) {
-      // Silence at end — trim right edge, shift clips after
-      await trimEndAndShift(project, target, clipsAfter, silence);
-    } else {
-      // Silence in the middle — clone + trim + reposition
-      await splitAndRemove(project, editor, sequence, trackIndex, trackType, target, clipsAfter, silence);
+    try {
+      if (isAtStart && isAtEnd) {
+        await trimEndAndShift(project, target, clipsAfter, silence);
+      } else if (isAtStart) {
+        await trimStartAndShift(project, target, clipsAfter, silence);
+      } else if (isAtEnd) {
+        await trimEndAndShift(project, target, clipsAfter, silence);
+      } else {
+        await splitAndRemove(project, editor, sequence, trackIndex, trackType, target, clipsAfter, silence);
+      }
+      removed++;
+      durationSaved += silence.duration;
+    } catch (err) {
+      console.error(`[SILENCE] Failed at ${silence.start.toFixed(3)}s:`, err);
     }
-
-    removed++;
-    durationSaved += silence.duration;
   }
 
   return { removed, durationSaved };
 }
 
-// ── Transcript parsing ───────────────────────────────────────────────────────
-
-function extractSilencesFromTranscript(transcript: PremiereTranscriptJSON): Silence[] {
-  const silences: Silence[] = [];
-
-  for (const segment of transcript.segments) {
-    for (const word of segment.words) {
-      if ((word.tags || []).includes('disfluency') && word.text === '') {
-        silences.push({
-          start: word.start,
-          end: word.start + word.duration,
-          duration: word.duration,
-        });
-      }
-    }
-  }
-
-  return silences.sort((a, b) => a.start - b.start);
-}
-
 // ── Track clip helpers ───────────────────────────────────────────────────────
 
-async function getTrackClips(
-  sequence: any,
-  trackIndex: number,
-  trackType: 'audio' | 'video',
-): Promise<ClipInfo[]> {
+async function getTrackClips(sequence: any, trackIndex: number, trackType: 'audio' | 'video'): Promise<ClipInfo[]> {
   const track = trackType === 'audio'
     ? await sequence.getAudioTrack(trackIndex)
     : await sequence.getVideoTrack(trackIndex);
 
-  const items = track.getTrackItems(1, false); // 1 = CLIP
+  const items = track.getTrackItems(1, false);
   const infos: ClipInfo[] = [];
 
   for (const item of items) {
-    const startTime = await item.getStartTime();
-    const endTime = await item.getEndTime();
-    const inPoint = await item.getInPoint();
-    const outPoint = await item.getOutPoint();
-
     infos.push({
       item,
-      start: startTime.seconds,
-      end: endTime.seconds,
-      inPoint: inPoint.seconds,
-      outPoint: outPoint.seconds,
+      start: (await item.getStartTime()).seconds,
+      end: (await item.getEndTime()).seconds,
+      inPoint: (await item.getInPoint()).seconds,
+      outPoint: (await item.getOutPoint()).seconds,
     });
   }
 
@@ -180,161 +181,94 @@ async function getTrackClips(
 
 // ── Edit operations ──────────────────────────────────────────────────────────
 
-/**
- * Remove an entire clip (silence covers it completely) and shift subsequent clips left.
- */
-async function removeClipAndShift(
-  project: any,
-  editor: any,
-  target: ClipInfo,
-  clipsAfter: ClipInfo[],
-  silenceDuration: number,
-): Promise<void> {
+async function trimStartAndShift(project: any, target: ClipInfo, clipsAfter: ClipInfo[], silence: Silence): Promise<void> {
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
-      // Remove via selection + ripple would be ideal, but simpler to
-      // set duration to 0 by collapsing start/end, then shift.
-      // Instead: move clip far away, then shift.
-      // Safest: use createSetEndAction to collapse, then shift.
-      ca.addAction(target.item.createSetEndAction(
-        ppro.TickTime.createWithSeconds(target.start)
-      ));
+      ca.addAction(target.item.createSetStartAction(ppro.TickTime.createWithSeconds(silence.end)));
+      ca.addAction(target.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
       for (const c of clipsAfter) {
-        ca.addAction(c.item.createMoveAction(
-          ppro.TickTime.createWithSeconds(-silenceDuration)
-        ));
+        ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
       }
     }, "Supprimer silence");
   });
 }
 
-/**
- * Silence at the beginning of a clip: trim the left edge, shift left.
- */
-async function trimStartAndShift(
-  project: any,
-  target: ClipInfo,
-  clipsAfter: ClipInfo[],
-  silence: Silence,
-): Promise<void> {
+async function trimEndAndShift(project: any, target: ClipInfo, clipsAfter: ClipInfo[], silence: Silence): Promise<void> {
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
-      // Trim left edge to silence.end
-      ca.addAction(target.item.createSetStartAction(
-        ppro.TickTime.createWithSeconds(silence.end)
-      ));
-      // Move trimmed clip + all after left by silence duration
-      ca.addAction(target.item.createMoveAction(
-        ppro.TickTime.createWithSeconds(-silence.duration)
-      ));
+      ca.addAction(target.item.createSetEndAction(ppro.TickTime.createWithSeconds(silence.start)));
       for (const c of clipsAfter) {
-        ca.addAction(c.item.createMoveAction(
-          ppro.TickTime.createWithSeconds(-silence.duration)
-        ));
+        ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
       }
-    }, "Supprimer silence (d\u00e9but)");
+    }, "Supprimer silence");
   });
 }
 
-/**
- * Silence at the end of a clip: trim the right edge, shift after clips left.
- */
-async function trimEndAndShift(
-  project: any,
-  target: ClipInfo,
-  clipsAfter: ClipInfo[],
-  silence: Silence,
-): Promise<void> {
-  project.lockedAccess(() => {
-    project.executeTransaction((ca: any) => {
-      ca.addAction(target.item.createSetEndAction(
-        ppro.TickTime.createWithSeconds(silence.start)
-      ));
-      for (const c of clipsAfter) {
-        ca.addAction(c.item.createMoveAction(
-          ppro.TickTime.createWithSeconds(-silence.duration)
-        ));
-      }
-    }, "Supprimer silence (fin)");
-  });
-}
-
-/**
- * Silence in the middle of a clip: clone, trim both halves, reposition.
- *
- * Strategy:
- * 1. Transaction A: Clone clip to a safe position (3600s offset)
- * 2. Async: find the clone by its expected position
- * 3. Transaction B: trim original outPoint, trim clone inPoint, move clone + shift
- */
 async function splitAndRemove(
-  project: any,
-  editor: any,
-  sequence: any,
-  trackIndex: number,
-  trackType: 'audio' | 'video',
-  target: ClipInfo,
-  clipsAfter: ClipInfo[],
-  silence: Silence,
+  project: any, editor: any, sequence: any,
+  trackIndex: number, trackType: 'audio' | 'video',
+  target: ClipInfo, clipsAfter: ClipInfo[], silence: Silence,
 ): Promise<void> {
-  const SAFE_OFFSET = 3600; // 1h away to avoid overlap
+  const SAFE_OFFSET = 3600;
 
-  // Step A: Clone to safe position
+  // Step A: Clone
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
       ca.addAction(editor.createCloneTrackItemAction(
-        target.item,
-        ppro.TickTime.createWithSeconds(SAFE_OFFSET),
-        0, 0, false, false,
+        target.item, ppro.TickTime.createWithSeconds(SAFE_OFFSET), 0, 0, false, false,
       ));
-    }, "Clone pour d\u00e9coupage");
+    }, "Clone");
   });
 
-  // Step B: Find clone at expected position
-  const cloneExpectedStart = target.start + SAFE_OFFSET;
+  // Step B: Find clone + re-query original
   const clips2 = await getTrackClips(sequence, trackIndex, trackType);
-  const clone = clips2.find(c => Math.abs(c.start - cloneExpectedStart) < 0.1);
+  const cloneExpectedStart = target.start + SAFE_OFFSET;
+  const clone = clips2.find(c => Math.abs(c.start - cloneExpectedStart) < 0.5);
+  const original = clips2.find(c => Math.abs(c.start - target.start) < 0.05 && Math.abs(c.end - target.end) < 0.05);
 
-  if (!clone) {
-    console.error("[SILENCE] Clone not found at expected position", cloneExpectedStart);
+  if (!clone || !original) {
+    console.error("[SILENCE] Clone or original not found after cloning");
     return;
   }
 
-  // Compute source-relative trim values
-  // Clone needs to show only the part AFTER the silence
-  // Source offset of silence.end within the original clip:
-  const sourceOffsetSilenceEnd = target.inPoint + (silence.end - target.start);
+  const sourceOffsetSilenceEnd = original.inPoint + (silence.end - original.start);
 
-  // Step C: Trim both + reposition clone + shift subsequent clips
+  // Step C: Trim original end
   project.lockedAccess(() => {
     project.executeTransaction((ca: any) => {
-      // 1. Original: trim end to silence.start
-      ca.addAction(target.item.createSetEndAction(
-        ppro.TickTime.createWithSeconds(silence.start)
-      ));
-
-      // 2. Clone: set in-point to skip silence portion
-      ca.addAction(clone.item.createSetInPointAction(
-        ppro.TickTime.createWithSeconds(sourceOffsetSilenceEnd)
-      ));
-
-      // 3. Move clone from safe position to right after original (= silence.start)
-      // After setInPoint, clone's timeline start shifted right by the trim amount.
-      // Clone was at cloneExpectedStart, in-point increased by (sourceOffsetSilenceEnd - clone.inPoint).
-      // New clone start = cloneExpectedStart + (sourceOffsetSilenceEnd - clone.inPoint)
-      const trimAmount = sourceOffsetSilenceEnd - clone.inPoint;
-      const cloneCurrentStart = cloneExpectedStart + trimAmount;
-      const moveOffset = silence.start - cloneCurrentStart;
-      ca.addAction(clone.item.createMoveAction(
-        ppro.TickTime.createWithSeconds(moveOffset)
-      ));
-
-      // 4. Shift all clips that were originally after target.end
-      for (const c of clipsAfter) {
-        ca.addAction(c.item.createMoveAction(
-          ppro.TickTime.createWithSeconds(-silence.duration)
-        ));
-      }
-    }, "D\u00e9couper et supprimer silence");
+      ca.addAction(original.item.createSetEndAction(ppro.TickTime.createWithSeconds(silence.start)));
+    }, "Trim original");
   });
+
+  // Step D: Set clone in-point
+  project.lockedAccess(() => {
+    project.executeTransaction((ca: any) => {
+      ca.addAction(clone.item.createSetInPointAction(ppro.TickTime.createWithSeconds(sourceOffsetSilenceEnd)));
+    }, "Trim clone");
+  });
+
+  // Step E: Move clone back
+  const clips3 = await getTrackClips(sequence, trackIndex, trackType);
+  const cloneAfterTrim = clips3.find(c => c.start > SAFE_OFFSET - 100);
+  if (!cloneAfterTrim) return;
+
+  const moveOffset = silence.start - cloneAfterTrim.start;
+  project.lockedAccess(() => {
+    project.executeTransaction((ca: any) => {
+      ca.addAction(cloneAfterTrim.item.createMoveAction(ppro.TickTime.createWithSeconds(moveOffset)));
+    }, "Move clone");
+  });
+
+  // Step F: Shift clips after
+  const clips4 = await getTrackClips(sequence, trackIndex, trackType);
+  const toShift = clips4.filter(c => c.start > silence.start + 0.05 && c.start < SAFE_OFFSET - 100);
+  if (toShift.length > 0) {
+    project.lockedAccess(() => {
+      project.executeTransaction((ca: any) => {
+        for (const c of toShift) {
+          ca.addAction(c.item.createMoveAction(ppro.TickTime.createWithSeconds(-silence.duration)));
+        }
+      }, "Shift clips");
+    });
+  }
 }
