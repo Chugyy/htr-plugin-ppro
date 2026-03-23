@@ -84,15 +84,23 @@ export async function removeSilencesFromTrack(
 
     // 1. Gather current clip state (async — outside transaction)
     const clips = await getTrackClips(sequence, trackIndex, trackType);
-    const target = clips.find(c => silence.start >= c.start - 0.01 && silence.end <= c.end + 0.01);
+
+    // Find clip that contains at least the START of this silence (tolerance 0.05s)
+    const target = clips.find(c => silence.start >= c.start - 0.05 && silence.start <= c.end + 0.05);
 
     if (!target) {
       console.warn(`[SILENCE] No clip found for silence at ${silence.start.toFixed(2)}s`);
       continue;
     }
 
-    const isAtStart = Math.abs(silence.start - target.start) < 0.02;
-    const isAtEnd = Math.abs(silence.end - target.end) < 0.02;
+    // Clamp silence end to clip boundary if it extends slightly beyond
+    if (silence.end > target.end) {
+      silence.end = target.end;
+      silence.duration = silence.end - silence.start;
+    }
+
+    const isAtStart = Math.abs(silence.start - target.start) < 0.05;
+    const isAtEnd = Math.abs(silence.end - target.end) < 0.05;
 
     // Clips AFTER this clip that need to shift left
     const clipsAfter = clips.filter(c => c.start >= target.end - 0.01 && c !== target);
