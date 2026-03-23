@@ -18,33 +18,22 @@
 
 <div id="derusher-loaded" hidden>
 
-  <!-- ── Étape 2 : Sélection de la piste + détection ───────── -->
+  <!-- ── Étape 2 : Sélection + suppression ─────────────────── -->
   <div class="step">
     <p id="derusher-sequence-name" class="sequence-label"></p>
 
     <div class="step__text">
-      <div class="step__title">Piste à dérusher</div>
-      <p class="step__desc">Sélectionnez la piste audio puis lancez la détection des silences réels.</p>
+      <div class="step__title">Supprimer les blancs</div>
+      <p class="step__desc">Sélectionnez la piste audio puis lancez la suppression. Les silences réels seront détectés automatiquement et supprimés. Annulable via Ctrl+Z.</p>
     </div>
 
     <div id="derusher-track-selector" class="track__list"></div>
 
     <div class="step__row" style="margin-top:8px">
-      <div id="btn-detect-silences" class="btn" role="button" tabindex="0">Détecter les silences</div>
+      <div id="btn-remove-silences" class="btn btn--primary" role="button" tabindex="0">Supprimer les blancs</div>
     </div>
 
     <p id="derusher-preview" class="step__desc" style="margin-top:8px"></p>
-  </div>
-
-  <!-- ── Étape 3 : Supprimer ───────────────────────────────── -->
-  <div class="step">
-    <div class="step__row">
-      <div class="step__text">
-        <div class="step__title">Supprimer les blancs</div>
-        <p class="step__desc">Coupe les silences détectés et raccorde automatiquement. Annulable via Ctrl+Z.</p>
-      </div>
-      <div id="btn-remove-silences" class="btn btn--primary btn--disabled" role="button" tabindex="0">Supprimer</div>
-    </div>
   </div>
 
 </div>

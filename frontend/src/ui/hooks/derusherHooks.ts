@@ -1,11 +1,5 @@
 import { detectSilences, removeSilencesFromTrack } from '../../core/jobs/silenceRemoval';
-import type { Silence } from '../../core/jobs/silenceRemoval';
 import { getActiveSequence } from '../../core/api/premiereProAPI';
-
-// ── State ────────────────────────────────────────────────────────────────────
-
-let detectedSilences: Silence[] = [];
-let selectedTrackIndex = 0;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,12 +35,11 @@ export function mountDerusherHooks(): void {
   const btnLoad = document.getElementById('btn-load-derusher');
   const btnRemove = document.getElementById('btn-remove-silences');
 
-  // ── Load sequence + build track selector ──
+  // ── Load sequence ──
   btnLoad?.addEventListener('click', async () => {
     if (btnLoad.classList.contains('btn--disabled')) return;
     btnLoad.classList.add('btn--disabled');
     setStatus('notice', 'Chargement...');
-    detectedSilences = [];
 
     try {
       const sequence = await getActiveSequence();
@@ -55,14 +48,11 @@ export function mountDerusherHooks(): void {
 
       await buildTrackSelector(sequence);
 
-      // Hide preview until detection
       const preview = document.getElementById('derusher-preview');
       if (preview) preview.textContent = '';
 
       document.getElementById('derusher-loaded')?.removeAttribute('hidden');
-      btnRemove?.classList.add('btn--disabled');
-
-      setStatus('neutral', 'Sélectionnez une piste puis lancez la détection');
+      setStatus('neutral', 'Prêt');
     } catch (err: any) {
       setStatus('negative', err.message);
     } finally {
@@ -70,69 +60,52 @@ export function mountDerusherHooks(): void {
     }
   });
 
-  // ── Detect silences on selected track ──
-  const btnDetect = document.getElementById('btn-detect-silences');
-  btnDetect?.addEventListener('click', async () => {
-    if (btnDetect.classList.contains('btn--disabled')) return;
+  // ── Detect + Remove in one click ──
+  btnRemove?.addEventListener('click', async () => {
+    if (btnRemove.classList.contains('btn--disabled')) return;
 
     const selected = document.querySelector<HTMLInputElement>('input[name="derusher-track"]:checked');
     if (!selected) return;
 
-    selectedTrackIndex = parseInt(selected.value, 10);
-    btnDetect.classList.add('btn--disabled');
-    setStatus('notice', 'Détection des silences...');
-
-    try {
-      const result = await detectSilences(
-        selectedTrackIndex,
-        (msg) => setStatus('notice', msg),
-      );
-
-      detectedSilences = result.silences;
-
-      const preview = document.getElementById('derusher-preview');
-      if (preview) {
-        if (detectedSilences.length === 0) {
-          preview.textContent = 'Aucun silence détecté.';
-        } else {
-          preview.textContent = `${detectedSilences.length} silence(s) — ${result.totalDuration.toFixed(1)}s à supprimer (sur ${result.audioDuration.toFixed(1)}s d'audio)`;
-        }
-      }
-
-      if (detectedSilences.length > 0) {
-        btnRemove?.classList.remove('btn--disabled');
-      }
-
-      setStatus('positive', `${detectedSilences.length} silence(s) détecté(s)`);
-    } catch (err: any) {
-      setStatus('negative', err.message);
-    } finally {
-      btnDetect.classList.remove('btn--disabled');
-    }
-  });
-
-  // ── Remove silences ──
-  btnRemove?.addEventListener('click', async () => {
-    if (btnRemove.classList.contains('btn--disabled')) return;
-    if (detectedSilences.length === 0) return;
-
-    setStatus('notice', 'Suppression des blancs...');
+    const trackIndex = parseInt(selected.value, 10);
     btnRemove.classList.add('btn--disabled');
 
     try {
-      const result = await removeSilencesFromTrack(
-        selectedTrackIndex,
+      // Phase 1: Detect
+      setStatus('notice', 'Détection des silences...');
+      const result = await detectSilences(
+        trackIndex,
+        (msg) => setStatus('notice', msg),
+      );
+
+      const preview = document.getElementById('derusher-preview');
+
+      if (result.silences.length === 0) {
+        if (preview) preview.textContent = 'Aucun silence détecté.';
+        setStatus('neutral', 'Aucun silence à supprimer');
+        return;
+      }
+
+      if (preview) {
+        preview.textContent = `${result.silences.length} silence(s) détecté(s) — suppression en cours...`;
+      }
+
+      // Phase 2: Remove
+      setStatus('notice', 'Suppression des blancs...');
+      const removeResult = await removeSilencesFromTrack(
+        trackIndex,
         'audio',
-        detectedSilences,
+        result.silences,
         (_step, _total, msg) => setStatus('notice', msg),
       );
 
-      setStatus('positive',
-        `${result.removed} silence(s) supprimé(s) (${result.durationSaved.toFixed(1)}s)`
-      );
-      detectedSilences = [];
+      if (preview) {
+        preview.textContent = `${removeResult.removed} silence(s) supprimé(s) — ${removeResult.durationSaved.toFixed(1)}s récupéré(s)`;
+      }
+      setStatus('positive', 'Dérushage terminé');
+
     } catch (err: any) {
-      setStatus('negative', 'Erreur: ' + err.message);
+      setStatus('negative', err.message);
     } finally {
       btnRemove.classList.remove('btn--disabled');
     }
