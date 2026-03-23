@@ -152,7 +152,11 @@ export function mountAudioHooks(): void {
     appendLog('audio-logs', `→ Optimisation de ${selectedTracks.length} piste(s)`);
     try {
       const outputDir = (document.getElementById('output-dir') as HTMLInputElement)?.value?.trim() || '';
-      const response: OptimizationResponse = await optimizeAudio(selectedTracks, outputDir);
+      const response: OptimizationResponse = await optimizeAudio(
+        selectedTracks,
+        outputDir,
+        (msg) => setStatus('audio-status', 'notice', msg),
+      );
       setStatus('audio-status', 'positive', 'Terminé');
       appendLog('audio-logs', `✓ ${response.optimizedTracks?.length || 0} piste(s) optimisée(s) (${response.processingTime}s)`);
     } catch (err: any) {

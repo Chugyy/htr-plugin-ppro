@@ -66,6 +66,7 @@ export async function loadAudioTracks(): Promise<{
 export async function optimizeAudio(
   selectedTracks: Array<{ index: number; filterType: 'voice' | 'music' | 'sound_effects' }>,
   outputDir: string,
+  onProgress?: (msg: string) => void,
 ): Promise<OptimizationResponse> {
   console.log(`[JOB] optimizeAudio() started — ${selectedTracks.length} track(s)`);
 
@@ -87,14 +88,14 @@ export async function optimizeAudio(
     console.log(`[JOB] Track ${selected.index}: ${clips.length} clips, source range [0-${maxOut.toFixed(1)}s]`);
 
     // 1. Export full source audio once
-    console.log("[JOB] Exporting full source audio...");
+    onProgress?.("Export audio...");
     const localPath = await exportAudioSegment(sourceFile, 0, maxOut, `optimize_t${selected.index}`);
     const serverPath = await backendClient.uploadAudio(localPath);
     await deleteLocalFile(localPath);
     console.log("[JOB] Full source uploaded");
 
     // 2. Backend optimizes single file
-    console.log("[JOB] Optimizing...");
+    onProgress?.("Optimisation en cours...");
     const response = await backendClient.optimizeAudio(
       [{
         trackIndex: selected.index,
@@ -120,7 +121,7 @@ export async function optimizeAudio(
     const optimizedServerPath = response.optimizedTracks[0].clips[0].optimizedPath;
 
     // 3. Download optimized file
-    console.log("[JOB] Downloading optimized file...");
+    onProgress?.("Téléchargement...");
     const localOptimized = await backendClient.downloadOptimizedFile(optimizedServerPath, outputDir);
     console.log(`[JOB] Downloaded → ${localOptimized}`);
 
@@ -156,26 +157,31 @@ export async function optimizeAudio(
 
     for (let ci = 0; ci < clips.length; ci++) {
       const clip = clips[ci];
+      onProgress?.(`Insertion clip ${ci + 1}/${clips.length}...`);
 
-      // Combine setInOut + overwrite in ONE transaction (halves the transaction count)
+      // Transaction 1: set in/out on ProjectItem
       project.lockedAccess(() => {
         project.executeTransaction((ca: any) => {
           ca.addAction(optimizedCast.createSetInOutPointsAction(
             ppro.TickTime.createWithSeconds(clip.sourceInPoint),
             ppro.TickTime.createWithSeconds(clip.sourceOutPoint),
           ));
+        }, "Set in/out");
+      });
+
+      // Transaction 2: overwrite at position (uses the committed in/out)
+      project.lockedAccess(() => {
+        project.executeTransaction((ca: any) => {
           ca.addAction(editor.createOverwriteItemAction(
             optimizedPI,
             ppro.TickTime.createWithSeconds(clip.timelineStart),
             -1, targetTrack,
           ));
-        }, "Place optimized clip");
+        }, "Place clip");
       });
 
-      // Breathing room every 5 clips to prevent PPro crash
-      if (ci % 5 === 4) {
-        await new Promise(r => setTimeout(r, 100));
-      }
+      // Queue: pause between each clip
+      await new Promise(r => setTimeout(r, 50));
     }
 
     console.log(`[JOB] Track ${selected.index} done`);
