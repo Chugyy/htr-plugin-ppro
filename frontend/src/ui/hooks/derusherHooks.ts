@@ -1,5 +1,6 @@
 import { detectSilences, removeSilencesFromTrack } from '../../core/jobs/silenceRemoval';
 import { getActiveSequence } from '../../core/api/premiereProAPI';
+import { createSelect } from '@/ui/components';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,12 +47,16 @@ export function mountDerusherHooks(): void {
       const seqName = document.getElementById('derusher-sequence-name');
       if (seqName) seqName.textContent = sequence.name;
 
-      await buildTrackSelector(sequence);
-
-      const preview = document.getElementById('derusher-preview');
-      if (preview) preview.textContent = '';
+      const hasTrack = await buildTrackDropdown(sequence);
 
       document.getElementById('derusher-loaded')?.removeAttribute('hidden');
+
+      if (hasTrack) {
+        btnRemove?.classList.remove('btn--disabled');
+      } else {
+        btnRemove?.classList.add('btn--disabled');
+      }
+
       setStatus('neutral', 'Prêt');
     } catch (err: any) {
       setStatus('negative', err.message);
@@ -60,50 +65,38 @@ export function mountDerusherHooks(): void {
     }
   });
 
-  // ── Detect + Remove in one click ──
+  // ── Detect + Remove ──
   btnRemove?.addEventListener('click', async () => {
     if (btnRemove.classList.contains('btn--disabled')) return;
 
-    const selected = document.querySelector<HTMLInputElement>('input[name="derusher-track"]:checked');
-    if (!selected) return;
+    const select = document.getElementById('derusher-track-select') as HTMLSelectElement | null;
+    if (!select || !select.value) return;
 
-    const trackIndex = parseInt(selected.value, 10);
+    const trackIndex = parseInt(select.value, 10);
     btnRemove.classList.add('btn--disabled');
 
     try {
-      // Phase 1: Detect
       setStatus('notice', 'Détection des silences...');
       const result = await detectSilences(
         trackIndex,
         (msg) => setStatus('notice', msg),
       );
 
-      const preview = document.getElementById('derusher-preview');
-
       if (result.silences.length === 0) {
-        if (preview) preview.textContent = 'Aucun silence détecté.';
-        setStatus('neutral', 'Aucun silence à supprimer');
+        setStatus('neutral', 'Aucun silence détecté');
         return;
       }
 
-      if (preview) {
-        preview.textContent = `${result.silences.length} silence(s) détecté(s) — suppression en cours...`;
-      }
-
-      // Phase 2: Remove
-      setStatus('notice', 'Suppression des blancs...');
+      setStatus('notice', `${result.silences.length} silence(s) — suppression...`);
       const removeResult = await removeSilencesFromTrack(
         trackIndex,
-        'audio',
         result.silences,
         (_step, _total, msg) => setStatus('notice', msg),
       );
 
-      if (preview) {
-        preview.textContent = `${removeResult.removed} silence(s) supprimé(s) — ${removeResult.durationSaved.toFixed(1)}s récupéré(s)`;
-      }
-      setStatus('positive', 'Dérushage terminé');
-
+      setStatus('positive',
+        `${removeResult.removed} silence(s) supprimé(s) — ${removeResult.durationSaved.toFixed(1)}s récupéré(s)`
+      );
     } catch (err: any) {
       setStatus('negative', err.message);
     } finally {
@@ -112,42 +105,34 @@ export function mountDerusherHooks(): void {
   });
 }
 
-// ── Track selector ───────────────────────────────────────────────────────────
+// ── Track dropdown ───────────────────────────────────────────────────────────
 
-async function buildTrackSelector(sequence: any): Promise<void> {
-  const selector = document.getElementById('derusher-track-selector');
-  if (!selector) return;
-  selector.innerHTML = '';
+async function buildTrackDropdown(sequence: any): Promise<boolean> {
+  const container = document.getElementById('derusher-track-selector');
+  if (!container) return false;
+  container.innerHTML = '';
 
-  let firstChecked = false;
+  const options: Array<{ value: string; label: string }> = [];
   const audioCount = await sequence.getAudioTrackCount();
 
   for (let i = 0; i < audioCount; i++) {
     const track = await sequence.getAudioTrack(i);
     const items = track.getTrackItems(1, false);
     if (items.length === 0) continue;
-
-    const checked = !firstChecked;
-    firstChecked = true;
-
-    const item = document.createElement('div');
-    item.className = 'track__item';
-    item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0';
-
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = 'derusher-track';
-    radio.value = String(i);
-    radio.checked = checked;
-    radio.id = `derusher-audio-${i}`;
-
-    const lbl = document.createElement('label');
-    lbl.htmlFor = radio.id;
-    lbl.className = 'track__label';
-    lbl.textContent = `${track.name || 'Audio ' + (i + 1)} (${items.length} clip${items.length > 1 ? 's' : ''})`;
-
-    item.appendChild(radio);
-    item.appendChild(lbl);
-    selector.appendChild(item);
+    options.push({
+      value: String(i),
+      label: `${track.name || 'Audio ' + (i + 1)} — ${items.length} clip${items.length > 1 ? 's' : ''}`,
+    });
   }
+
+  if (options.length === 0) return false;
+
+  const wrapper = createSelect({
+    id: 'derusher-track-select',
+    options,
+    selected: options[0].value,
+  });
+  container.appendChild(wrapper);
+
+  return true;
 }

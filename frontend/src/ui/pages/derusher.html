@@ -3,12 +3,16 @@
   <div class="step__row">
     <div class="step__text">
       <div class="step__title">Charger la séquence</div>
-      <p class="step__desc">Charge la séquence active pour analyser les pistes audio.</p>
+      <p class="step__desc">Importez la séquence active pour analyser les pistes audio disponibles.</p>
     </div>
     <div id="btn-load-derusher" class="btn" role="button" tabindex="0">
       <span class="btn__icon">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12h4l3-9 4 18 3-9h4"/>
+          <circle cx="6" cy="6" r="3"/>
+          <circle cx="6" cy="18" r="3"/>
+          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
         </svg>
       </span>
       Charger
@@ -18,22 +22,27 @@
 
 <div id="derusher-loaded" hidden>
 
-  <!-- ── Étape 2 : Sélection + suppression ─────────────────── -->
+  <!-- ── Étape 2 : Sélection de la piste ───────────────────── -->
   <div class="step">
     <p id="derusher-sequence-name" class="sequence-label"></p>
 
     <div class="step__text">
-      <div class="step__title">Supprimer les blancs</div>
-      <p class="step__desc">Sélectionnez la piste audio puis lancez la suppression. Les silences réels seront détectés automatiquement et supprimés. Annulable via Ctrl+Z.</p>
+      <div class="step__title">Piste à dérusher</div>
+      <p class="step__desc">Sélectionnez la piste audio dont vous souhaitez supprimer les silences.</p>
     </div>
 
-    <div id="derusher-track-selector" class="track__list"></div>
+    <div id="derusher-track-selector"></div>
+  </div>
 
-    <div class="step__row" style="margin-top:8px">
-      <div id="btn-remove-silences" class="btn btn--primary" role="button" tabindex="0">Supprimer les blancs</div>
+  <!-- ── Étape 3 : Lancer ──────────────────────────────────── -->
+  <div class="step">
+    <div class="step__row">
+      <div class="step__text">
+        <div class="step__title">Supprimer les blancs</div>
+        <p class="step__desc">Détecte les silences réels puis les supprime automatiquement. Annulable via Ctrl+Z.</p>
+      </div>
+      <div id="btn-remove-silences" class="btn btn--primary btn--disabled" role="button" tabindex="0">Supprimer</div>
     </div>
-
-    <p id="derusher-preview" class="step__desc" style="margin-top:8px"></p>
   </div>
 
 </div>

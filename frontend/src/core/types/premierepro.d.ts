@@ -113,7 +113,6 @@ export interface TickTime {
 
 export interface SequenceEditor {
   createRemoveItemsAction(selection: TrackItemSelection, ripple: boolean, mediaType: any): any;
-  createCloneTrackItemAction(trackItem: any, timeOffset: TickTime, videoTrackVerticalOffset: number, audioTrackVerticalOffset: number, alignToVideo: boolean, isInsert: boolean): any;
   createOverwriteItemAction(projectItem: any, time: TickTime, videoTrackIndex: number, audioTrackIndex: number): any;
   createInsertProjectItemAction(projectItem: any, time: TickTime, videoTrackIndex: number, audioTrackIndex: number, limitShift: boolean): any;
 }
