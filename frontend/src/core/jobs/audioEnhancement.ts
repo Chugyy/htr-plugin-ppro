@@ -1,16 +1,22 @@
 /**
  * Audio Enhancement Job
- * Orchestrates: Premiere Pro API → Backend API → Premiere Pro API
+ *
+ * Optimizes audio quality (loudnorm, HPF, limiter) for selected tracks.
+ *
+ * Strategy: export the FULL source audio once, optimize as one file,
+ * then overwrite each timeline clip with the optimized version.
+ * This avoids exporting 70+ clips individually after derushing.
  */
 
 import * as premiereProAPI from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
-import { prepareClipsForBackend } from './utils';
-import type { AudioClipInfo, OptimizationResponse } from '@/core/types';
+import { exportAudioSegment, deleteLocalFile } from '../api/ameAPI';
+import type { OptimizationResponse } from '@/core/types';
+
+const ppro = window.require("premierepro") as any;
 
 /**
  * Load audio tracks from active sequence
- * Used by: audioHooks.onLoadTracks()
  */
 export async function loadAudioTracks(): Promise<{
   tracks: Array<{ id: number; name: string; duration: string; clips: number }>;
@@ -18,120 +24,205 @@ export async function loadAudioTracks(): Promise<{
 }> {
   console.log("[JOB] loadAudioTracks() started");
 
-  try {
-    // 1. Get available audio tracks
-    const availableTracks = await premiereProAPI.getAvailableAudioTracks();
-    console.log(`[JOB] Found ${availableTracks.length} audio tracks`);
+  const availableTracks = await premiereProAPI.getAvailableAudioTracks();
+  const tracksWithMetadata = [];
 
-    // 2. Analyze each track to get metadata
-    const tracksWithMetadata = [];
-    for (const track of availableTracks) {
-      try {
-        const trackInfo = await premiereProAPI.analyzeAudioTrack(track.index);
-
-        // Calculate total duration
-        let totalDuration = 0;
-        for (const clip of trackInfo.clips) {
-          totalDuration += clip.sourceDuration;
-        }
-
-        // Format duration as HH:MM:SS
-        const hours = Math.floor(totalDuration / 3600);
-        const minutes = Math.floor((totalDuration % 3600) / 60);
-        const seconds = Math.floor(totalDuration % 60);
-        const durationStr = hours > 0
-          ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-          : `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-        tracksWithMetadata.push({
-          id: track.index,
-          name: track.name,
-          duration: durationStr,
-          clips: trackInfo.clipCount
-        });
-      } catch (error) {
-        console.error(`[JOB] Failed to analyze track ${track.index}:`, error);
-        // Add track with default values
-        tracksWithMetadata.push({
-          id: track.index,
-          name: track.name,
-          duration: "0:00",
-          clips: 0
-        });
+  for (const track of availableTracks) {
+    try {
+      const trackInfo = await premiereProAPI.analyzeAudioTrack(track.index);
+      let totalDuration = 0;
+      for (const clip of trackInfo.clips) {
+        totalDuration += clip.sourceDuration;
       }
+      const minutes = Math.floor(totalDuration / 60);
+      const seconds = Math.floor(totalDuration % 60);
+      tracksWithMetadata.push({
+        id: track.index,
+        name: track.name,
+        duration: `${minutes}:${seconds.toString().padStart(2, '0')}`,
+        clips: trackInfo.clipCount,
+      });
+    } catch {
+      tracksWithMetadata.push({ id: track.index, name: track.name, duration: "0:00", clips: 0 });
     }
-
-    const project = await premiereProAPI.getActiveProject();
-    const projectDir = project.path.split('/').slice(0, -1).join('/');
-
-    console.log("[JOB] loadAudioTracks() completed");
-    return { tracks: tracksWithMetadata, projectDir };
-
-  } catch (error) {
-    console.error("[JOB] loadAudioTracks() failed:", error);
-    throw error;
   }
+
+  const project = await premiereProAPI.getActiveProject();
+  const projectDir = project.path.split('/').slice(0, -1).join('/');
+
+  return { tracks: tracksWithMetadata, projectDir };
 }
 
 /**
- * Optimize audio using selected filter type
- * Used by: audioHooks.onOptimize()
+ * Optimize audio for selected tracks.
  *
- * Orchestration:
- * 1. Get all audio tracks from sequence
- * 2. Extract clips from all tracks
- * 3. Call backend to optimize audio with selected filter
- * 4. Replace clips in Premiere with optimized audio (NOT IMPLEMENTED YET)
- * 5. Return response
+ * For each track:
+ * 1. Export full source audio ONCE via AME
+ * 2. Upload + optimize on backend (single file)
+ * 3. Download optimized file
+ * 4. Import into PPro project
+ * 5. Overwrite each clip with the optimized version (same in/out points)
  */
 export async function optimizeAudio(
   selectedTracks: Array<{ index: number; filterType: 'voice' | 'music' | 'sound_effects' }>,
-  outputDir: string
+  outputDir: string,
 ): Promise<OptimizationResponse> {
-  console.log(`[JOB] optimizeAudio() started with ${selectedTracks.length} track(s)`);
+  console.log(`[JOB] optimizeAudio() started — ${selectedTracks.length} track(s)`);
 
-  try {
-    // 1. Analyze selected tracks
-    const trackIndices = selectedTracks.map(t => t.index);
-    const tracks = await premiereProAPI.analyzeMultipleAudioTracks(trackIndices);
-    console.log(`[JOB] Analyzed ${tracks.length} tracks`);
+  const project = await premiereProAPI.getActiveProject();
+  const sequence = await premiereProAPI.getActiveSequence();
+  const editor = ppro.SequenceEditor.getEditor(sequence);
+  let totalProcessingTime = 0;
 
-    // 2. Export via AME + upload per track (flatten → prepare → re-map)
-    const allClips: AudioClipInfo[] = tracks.flatMap(t => t.clips);
-    const processedClips = await prepareClipsForBackend(allClips);
+  const allTrackResults: any[] = [];
 
-    // Calculate total audio duration for dynamic timeout
-    const totalDuration = allClips.reduce((sum, c) => sum + c.sourceDuration, 0);
+  for (const selected of selectedTracks) {
+    const trackInfo = await premiereProAPI.analyzeAudioTrack(selected.index);
+    if (trackInfo.clips.length === 0) continue;
 
-    let clipIndex = 0;
-    const tracksPayload = tracks.map(track => ({
-      trackIndex: track.trackIndex,
-      filterType: selectedTracks.find(t => t.index === track.trackIndex)?.filterType ?? 'voice',
-      clips: track.clips.map(() => processedClips[clipIndex++]),
-    }));
+    const clips = trackInfo.clips;
+    const sourceFile = clips[0].sourceFilePath;
+    const maxOut = Math.max(...clips.map(c => c.sourceOutPoint));
 
-    // 3. Call backend to optimize audio (clips are preextracted + uploaded)
-    console.log(`[JOB] Calling backend for audio optimization (${totalDuration.toFixed(0)}s total audio)...`);
-    const response = await backendClient.optimizeAudio(tracksPayload, totalDuration);
+    console.log(`[JOB] Track ${selected.index}: ${clips.length} clips, source range [0-${maxOut.toFixed(1)}s]`);
 
-    if (!response.success || !response.optimizedTracks) {
-      throw new Error(response.error || "Audio optimization failed");
+    // 1. Export full source audio once
+    console.log("[JOB] Exporting full source audio...");
+    const localPath = await exportAudioSegment(sourceFile, 0, maxOut, `optimize_t${selected.index}`);
+    const serverPath = await backendClient.uploadAudio(localPath);
+    await deleteLocalFile(localPath);
+    console.log("[JOB] Full source uploaded");
+
+    // 2. Backend optimizes single file
+    console.log("[JOB] Optimizing...");
+    const response = await backendClient.optimizeAudio(
+      [{
+        trackIndex: selected.index,
+        filterType: selected.filterType,
+        clips: [{
+          clipName: `full_t${selected.index}`,
+          sourceFilePath: serverPath,
+          sourceInPoint: 0,
+          sourceOutPoint: maxOut,
+          timelineStart: 0,
+          timelineEnd: maxOut,
+          preextracted: true,
+        }],
+      }],
+      maxOut,
+    );
+
+    if (!response.success || !response.optimizedTracks?.length) {
+      throw new Error(`Optimization failed for track ${selected.index}`);
     }
 
-    console.log(`[JOB] Audio optimization completed successfully`);
-    console.log(`[JOB] - Optimized tracks: ${response.optimizedTracks.length}`);
-    console.log(`[JOB] - Processing time: ${response.processingTime}s`);
-    console.log(`[JOB] - Output directory: ${response.outputDirectory}`);
+    totalProcessingTime += response.processingTime || 0;
+    const optimizedServerPath = response.optimizedTracks[0].clips[0].optimizedPath;
 
-    // 4. Import optimized clips into a new audio track in Premiere Pro
-    console.log("[JOB] Importing optimized clips into Premiere Pro...");
-    await premiereProAPI.importOptimizedClips(response.optimizedTracks!, outputDir);
+    // 3. Download optimized file
+    console.log("[JOB] Downloading optimized file...");
+    const localOptimized = await backendClient.downloadOptimizedFile(optimizedServerPath, outputDir);
+    console.log(`[JOB] Downloaded → ${localOptimized}`);
 
-    console.log("[JOB] optimizeAudio() completed");
-    return response;
+    // 4. Import into PPro project
+    await project.importFiles([localOptimized]);
 
-  } catch (error) {
-    console.error("[JOB] optimizeAudio() failed:", error);
-    throw error;
+    // Wait for import to be visible in project tree
+    const rootItem = await project.getRootItem();
+    const optimizedFilename = localOptimized.split('/').pop()!;
+    let optimizedPI: any = null;
+    const deadline = Date.now() + 15_000;
+
+    while (Date.now() < deadline) {
+      optimizedPI = await findItemByName(rootItem, optimizedFilename);
+      if (optimizedPI) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    if (!optimizedPI) {
+      throw new Error(`Optimized file not found in project: ${optimizedFilename}`);
+    }
+
+    const optimizedCast = ppro.ClipProjectItem.cast(optimizedPI);
+    console.log(`[JOB] Found optimized in project: ${optimizedFilename}`);
+
+    // 5. Overwrite each clip with the optimized version
+    console.log(`[JOB] Placing ${clips.length} optimized clip(s)...`);
+
+    // Find an empty track or use next available
+    const emptyTrackIdx = await findEmptyAudioTrack(sequence);
+    const targetTrack = emptyTrackIdx >= 0 ? emptyTrackIdx : await sequence.getAudioTrackCount();
+    console.log(`[JOB] Target track: Audio ${targetTrack + 1}`);
+
+    for (const clip of clips) {
+      // Set in/out on optimized source to match this clip's source range
+      project.lockedAccess(() => {
+        project.executeTransaction((ca: any) => {
+          ca.addAction(optimizedCast.createSetInOutPointsAction(
+            ppro.TickTime.createWithSeconds(clip.sourceInPoint),
+            ppro.TickTime.createWithSeconds(clip.sourceOutPoint),
+          ));
+        }, "Set in/out");
+      });
+
+      // Overwrite at clip's timeline position
+      project.lockedAccess(() => {
+        project.executeTransaction((ca: any) => {
+          ca.addAction(editor.createOverwriteItemAction(
+            optimizedPI,
+            ppro.TickTime.createWithSeconds(clip.timelineStart),
+            -1, targetTrack,
+          ));
+        }, "Place optimized");
+      });
+    }
+
+    console.log(`[JOB] Track ${selected.index} done`);
+    allTrackResults.push({
+      trackIndex: selected.index,
+      filterType: selected.filterType,
+      clips: clips.map(c => ({
+        clipName: c.clipName,
+        optimizedPath: optimizedServerPath,
+        duration: c.sourceDuration,
+        timelineStart: c.timelineStart,
+        timelineEnd: c.timelineEnd,
+      })),
+    });
   }
+
+  console.log("[JOB] optimizeAudio() completed");
+
+  return {
+    success: true,
+    optimizedTracks: allTrackResults,
+    processingTime: totalProcessingTime,
+    outputDirectory: outputDir,
+  };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function findItemByName(folder: any, name: string): Promise<any | null> {
+  const items = await folder.getItems();
+  for (const item of items) {
+    try {
+      const f = ppro.FolderItem.cast(item);
+      const found = await findItemByName(f, name);
+      if (found) return found;
+      continue;
+    } catch { /* not a folder */ }
+    if (item.name === name) return item;
+  }
+  return null;
+}
+
+async function findEmptyAudioTrack(sequence: any): Promise<number> {
+  const count = await sequence.getAudioTrackCount();
+  for (let i = 0; i < count; i++) {
+    const track = await sequence.getAudioTrack(i);
+    const items = track.getTrackItems(1, false);
+    if (items.length === 0) return i;
+  }
+  return -1;
 }
