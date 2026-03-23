@@ -154,27 +154,28 @@ export async function optimizeAudio(
     const targetTrack = emptyTrackIdx >= 0 ? emptyTrackIdx : await sequence.getAudioTrackCount();
     console.log(`[JOB] Target track: Audio ${targetTrack + 1}`);
 
-    for (const clip of clips) {
-      // Set in/out on optimized source to match this clip's source range
+    for (let ci = 0; ci < clips.length; ci++) {
+      const clip = clips[ci];
+
+      // Combine setInOut + overwrite in ONE transaction (halves the transaction count)
       project.lockedAccess(() => {
         project.executeTransaction((ca: any) => {
           ca.addAction(optimizedCast.createSetInOutPointsAction(
             ppro.TickTime.createWithSeconds(clip.sourceInPoint),
             ppro.TickTime.createWithSeconds(clip.sourceOutPoint),
           ));
-        }, "Set in/out");
-      });
-
-      // Overwrite at clip's timeline position
-      project.lockedAccess(() => {
-        project.executeTransaction((ca: any) => {
           ca.addAction(editor.createOverwriteItemAction(
             optimizedPI,
             ppro.TickTime.createWithSeconds(clip.timelineStart),
             -1, targetTrack,
           ));
-        }, "Place optimized");
+        }, "Place optimized clip");
       });
+
+      // Breathing room every 5 clips to prevent PPro crash
+      if (ci % 5 === 4) {
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
 
     console.log(`[JOB] Track ${selected.index} done`);
