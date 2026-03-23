@@ -106,6 +106,24 @@ export interface Constants {
   };
 }
 
+export interface TickTime {
+  seconds: number;
+  ticks: string;
+}
+
+export interface SequenceEditor {
+  createRemoveItemsAction(selection: TrackItemSelection, ripple: boolean, mediaType: any): any;
+  createCloneTrackItemAction(trackItem: any, timeOffset: TickTime, videoTrackVerticalOffset: number, audioTrackVerticalOffset: number, alignToVideo: boolean, isInsert: boolean): any;
+  createOverwriteItemAction(projectItem: any, time: TickTime, videoTrackIndex: number, audioTrackIndex: number): any;
+  createInsertProjectItemAction(projectItem: any, time: TickTime, videoTrackIndex: number, audioTrackIndex: number, limitShift: boolean): any;
+}
+
+export interface TrackItemSelection {
+  addItem(trackItem: any, skipDuplicateCheck?: boolean): boolean;
+  removeItem(trackItem: any): boolean;
+  getTrackItems(): Promise<any[]>;
+}
+
 export interface PremiereProAPI {
   Project: {
     getActiveProject(): Promise<Project>;
@@ -118,6 +136,17 @@ export interface PremiereProAPI {
   };
   Time: {
     fromSeconds(seconds: number): Time;
+  };
+  TickTime: {
+    createWithSeconds(seconds: number): TickTime;
+    createWithTicks(ticks: string): TickTime;
+    TIME_ZERO: TickTime;
+  };
+  SequenceEditor: {
+    getEditor(sequence: Sequence): SequenceEditor;
+  };
+  TrackItemSelection: {
+    createEmptySelection(callback: (selection: TrackItemSelection) => void): boolean;
   };
   Transcript: TranscriptAPI;
   Constants: Constants;
