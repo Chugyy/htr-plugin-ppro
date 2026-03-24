@@ -14,10 +14,14 @@
 import {
   getActiveProject,
   getActiveSequence,
+  getActiveSequenceClipItem,
   analyzeAudioTrack,
+  exportTranscript,
+  importTranscript,
 } from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
 import { exportAudioSegment, deleteLocalFile } from '../api/ameAPI';
+import type { PremiereTranscriptJSON } from '@/core/types';
 
 const ppro = window.require("premierepro") as any;
 
@@ -196,6 +200,21 @@ export async function removeSilencesFromTrack(
     console.log(`[DERUST] Segment ${i + 1} at ${seg.position.toFixed(3)}s [${seg.srcIn.toFixed(3)}-${seg.srcOut.toFixed(3)}]`);
   }
 
+  // 5. Sync transcript with new timeline (if one exists)
+  try {
+    const seqClipItem = await getActiveSequenceClipItem();
+    const transcript = await exportTranscript(seqClipItem);
+
+    if (transcript) {
+      onProgress?.(segments.length + 1, segments.length + 1, "Sync transcription...");
+      const adjusted = adjustTranscriptToDerust(transcript, segments);
+      await importTranscript(adjusted, seqClipItem);
+      console.log(`[DERUST] Transcript synced`);
+    }
+  } catch (e) {
+    console.warn("[DERUST] Transcript sync skipped:", e);
+  }
+
   const durationSaved = silences.reduce((sum, s) => sum + s.duration, 0);
   console.log(`[DERUST] Done: ${segments.length} segments, ${durationSaved.toFixed(1)}s removed`);
 
@@ -246,6 +265,63 @@ function computeSpeechSegments(
   }
 
   return segments;
+}
+
+/**
+ * Adjust transcript timestamps to match the derushed timeline.
+ * Uses the speech segments to remap each word's position.
+ * Words that fall in silence regions are removed.
+ */
+function adjustTranscriptToDerust(
+  transcript: PremiereTranscriptJSON,
+  speechSegments: SpeechSegment[],
+): PremiereTranscriptJSON {
+  const adjusted: PremiereTranscriptJSON = {
+    language: transcript.language,
+    segments: [],
+    speakers: [...transcript.speakers],
+  };
+
+  for (const segment of transcript.segments) {
+    const newWords: typeof segment.words = [];
+
+    for (const word of segment.words) {
+      const newStart = remapTime(word.start, speechSegments);
+      if (newStart === null) continue; // word falls in a silence → skip
+
+      newWords.push({
+        ...word,
+        start: newStart,
+      });
+    }
+
+    if (newWords.length === 0) continue; // empty segment → skip
+
+    const firstWord = newWords[0];
+    const lastWord = newWords[newWords.length - 1];
+
+    adjusted.segments.push({
+      ...segment,
+      start: firstWord.start,
+      duration: (lastWord.start + lastWord.duration) - firstWord.start,
+      words: newWords,
+    });
+  }
+
+  return adjusted;
+}
+
+/**
+ * Remap a source timestamp to the new derushed timeline.
+ * Returns null if the time falls in a silence (no matching speech segment).
+ */
+function remapTime(srcTime: number, segments: SpeechSegment[]): number | null {
+  for (const seg of segments) {
+    if (srcTime >= seg.srcIn - 0.01 && srcTime <= seg.srcOut + 0.01) {
+      return seg.position + (srcTime - seg.srcIn);
+    }
+  }
+  return null;
 }
 
 /**
