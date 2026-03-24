@@ -180,8 +180,8 @@ export async function optimizeAudio(
         }, "Place clip");
       });
 
-      // Queue: pause between each clip
-      await new Promise(r => setTimeout(r, 50));
+      // Queue: pause between each clip to let PPro process
+      await new Promise(r => setTimeout(r, 200));
     }
 
     console.log(`[JOB] Track ${selected.index} done`);
