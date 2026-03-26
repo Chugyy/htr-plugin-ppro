@@ -2,6 +2,7 @@ import { loadActiveSequence, generateTranscription } from '../../core/jobs/trans
 import type { TrackSpeakerAssignment } from '../../core/jobs/transcriptionGeneration';
 import type { TranscriptionResponse } from '@/core/types';
 import { createInput, createSelect } from '@/ui/components';
+import { setStatus, setErrorStatus } from '@/ui/utils/status';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -12,34 +13,7 @@ let loadedTracks: Array<{ id: number; name: string; clipCount: number }> = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-let blinkTimer: ReturnType<typeof setInterval> | null = null;
-
-function setStatus(id: string, variant: 'neutral' | 'positive' | 'negative' | 'notice', text: string): void {
-  const container = document.getElementById(id);
-  if (!container) return;
-  const dot = container.querySelector('.status__dot') as HTMLElement | null;
-  const label = container.querySelector('.status__text');
-
-  // Stop any previous blink
-  if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
-
-  if (dot) {
-    dot.hidden = false;
-    dot.className = 'status__dot status__dot--' + variant;
-
-    // Blink orange for "notice" (loading)
-    if (variant === 'notice') {
-      let bright = true;
-      blinkTimer = setInterval(() => {
-        dot.style.background = bright ? '#cc7a00' : '#ff9800';
-        bright = !bright;
-      }, 500);
-    } else {
-      dot.style.background = '';
-    }
-  }
-  if (label) label.textContent = text;
-}
+// setStatus and setErrorStatus imported from @/ui/utils/status
 
 function appendLog(id: string, msg: string): void {
   const el = document.getElementById(id);

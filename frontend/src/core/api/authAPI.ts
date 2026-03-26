@@ -1,15 +1,22 @@
 /**
  * Auth API
- * Validates an admin API key against the backend.
+ * Validates an API key (dk_xxx) against the backend.
  */
 
 export async function validateApiKey(key: string): Promise<boolean> {
+  // Quick format check before hitting the network
+  if (!key || !key.startsWith('dk_') || key.length < 10) {
+    return false;
+  }
+
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${import.meta.env.VITE_BACKEND_URL}/auth/validate`);
-    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.open('GET', `${import.meta.env.VITE_BACKEND_URL}/api/auth/validate-key`);
+    xhr.setRequestHeader('X-API-Key', key);
+    xhr.timeout = 8000;
     xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
     xhr.onerror = () => resolve(false);
-    xhr.send(JSON.stringify({ api_key: key }));
+    xhr.ontimeout = () => resolve(false);
+    xhr.send();
   });
 }

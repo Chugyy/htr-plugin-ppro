@@ -1,25 +1,11 @@
 /**
  * Auth Service
- * Manages the admin API key in localStorage.
- *
- * EXPIRATION — current approach (frontend-side):
- *   The key is stored alongside a `storedAt` timestamp. On every `get()`,
- *   the age is checked locally: if > 30 days, the key is cleared and the
- *   user is forced to re-authenticate. The backend key itself can remain
- *   unchanged — expiry is enforced purely client-side.
- *
- * EXPIRATION — future approach (backend-side dynamic keys):
- *   When dynamic key generation is needed, the backend should:
- *     1. Generate a signed token embedding an expiry (e.g. HMAC or JWT):
- *        `token = sign({ issued_at, expires_at }, SECRET)`
- *     2. Expose a `POST /auth/token` endpoint that issues a fresh token.
- *     3. In `POST /auth/validate`, verify the signature AND `expires_at`.
- *   The frontend `storedAt` check becomes a quick local pre-check (UX only),
- *   while the backend is the single source of truth for expiry enforcement.
+ * Manages the API key (dk_xxx) in localStorage.
+ * No client-side expiry — the backend is the source of truth.
  */
 
 const STORAGE_KEY = 'htr_api_key';
-const EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const KEY_PREFIX = 'dk_';
 
 interface StoredAuth {
   key: string;
@@ -27,19 +13,33 @@ interface StoredAuth {
 }
 
 export const authService = {
+  /** Get stored key. Returns null if missing or wrong format. */
   get: (): string | null => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const { key, storedAt }: StoredAuth = JSON.parse(raw);
-    if (Date.now() - storedAt > EXPIRY_MS) {
+    try {
+      const { key }: StoredAuth = JSON.parse(raw);
+      if (!key || !key.startsWith(KEY_PREFIX)) {
+        // Old static key or corrupted — clear it
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      return key;
+    } catch {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
-    return key;
   },
+
   set: (key: string): void => {
     const payload: StoredAuth = { key, storedAt: Date.now() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   },
+
   clear: (): void => localStorage.removeItem(STORAGE_KEY),
+
+  /** Check if a key has the correct format (dk_ prefix). */
+  isValidFormat: (key: string): boolean => {
+    return typeof key === 'string' && key.startsWith(KEY_PREFIX) && key.length > 10;
+  },
 };

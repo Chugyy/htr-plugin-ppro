@@ -6,12 +6,14 @@ import { mountGenerationHooks } from './hooks/generationHooks';
 import { mountCorrectionHooks } from './hooks/correctionHooks';
 import { mountAudioHooks } from './hooks/audioHooks';
 import { mountDerusherHooks } from './hooks/derusherHooks';
+import { mountColorHooks } from './hooks/colorHooks';
 
 async function loadPages(): Promise<void> {
   const pages: Array<{ id: string; path: string }> = [
     { id: 'tab-generation', path: './pages/generation.html' },
     { id: 'tab-correction', path: './pages/correction.html' },
     { id: 'tab-derusher',   path: './pages/derusher.html' },
+    { id: 'tab-color',      path: './pages/color.html' },
     { id: 'tab-audio',      path: './pages/audio.html' },
   ];
 
@@ -53,6 +55,7 @@ async function initApp(): Promise<void> {
   mountGenerationHooks();
   mountCorrectionHooks();
   mountDerusherHooks();
+  mountColorHooks();
   mountAudioHooks();
 }
 

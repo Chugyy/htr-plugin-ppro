@@ -11,11 +11,15 @@ import type {
   AudioClipInfo,
   PremiereTranscriptJSON,
   ClipProjectItem,
-  ClipWithTranscript
+  ClipWithTranscript,
+  VideoTrackInfo,
+  VideoClipInfo,
+  LumetriCorrections
 } from '@/core/types';
 
 // Get Premiere Pro API
 const ppro = window.require("premierepro") as PremiereProAPI;
+const uxp = window.require("uxp") as any;
 
 // ========================================
 // PROJECT & SEQUENCE
@@ -477,4 +481,169 @@ async function scanFolderForTranscripts(
   } catch (error) {
     console.error("[ERROR] scanFolderForTranscripts failed:", error);
   }
+}
+
+// ========================================
+// VIDEO TRACKS & COLOR CORRECTION
+// ========================================
+
+/** Lumetri parameter index map (PPro 26.x, confirmed via test) */
+const LUMETRI_PARAMS: Record<keyof LumetriCorrections, number> = {
+  temperature: 14,
+  tint: 15,
+  saturation: 16,
+  exposure: 19,
+  contrast: 20,
+  highlights: 21,
+  shadows: 22,
+  whites: 23,
+  blacks: 24,
+  vibrance: 42,
+};
+
+/**
+ * Get all video tracks with their clips.
+ */
+export async function getVideoTracks(): Promise<VideoTrackInfo[]> {
+  const sequence = await getActiveSequence();
+  const trackCount = await sequence.getVideoTrackCount();
+  const tracks: VideoTrackInfo[] = [];
+
+  for (let t = 0; t < trackCount; t++) {
+    const track = await sequence.getVideoTrack(t);
+    const trackItems = track.getTrackItems(1, false); // 1 = CLIP
+    if (trackItems.length === 0) continue;
+
+    const clips: VideoClipInfo[] = [];
+    for (const item of trackItems) {
+      try {
+        const clipName = await item.getName();
+        const projectItem = await item.getProjectItem();
+        const clipProjectItem = ppro.ClipProjectItem.cast(projectItem);
+        const sourceFilePath = await clipProjectItem.getMediaFilePath();
+        const startTime = await item.getStartTime();
+        const endTime = await item.getEndTime();
+
+        clips.push({
+          clipName,
+          trackIndex: t,
+          sourceFilePath,
+          timelineStart: startTime.seconds,
+          timelineEnd: endTime.seconds,
+          timelineDuration: endTime.seconds - startTime.seconds,
+        });
+      } catch { /* skip broken clips */ }
+    }
+
+    tracks.push({
+      trackIndex: t,
+      trackName: track.name || `Video ${t + 1}`,
+      clipCount: clips.length,
+      clips,
+    });
+  }
+
+  return tracks;
+}
+
+/**
+ * Export a frame from the active sequence at a given time.
+ * Uses the plugin data folder (same as audio export), reads, deletes, returns ArrayBuffer.
+ */
+export async function exportFrame(
+  timeSeconds: number,
+  filename: string,
+): Promise<ArrayBuffer> {
+  const sequence = await getActiveSequence();
+  const time = ppro.TickTime.createWithSeconds(timeSeconds);
+
+  // Use dataFolder (same as ameAPI) — PPro can write there and we can read via getEntry
+  const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
+  const outputDir = dataFolder.nativePath;
+
+  // PPro appends .png to filename, so "frame_1.png" becomes "frame_1.png.png"
+  const diskFilename = `${filename}.png`;
+
+  const success = await ppro.Exporter.exportSequenceFrame(
+    sequence, time, filename, outputDir, 1920, 1080
+  );
+
+  if (!success) throw new Error(`Frame export failed at t=${timeSeconds}s`);
+
+  // Poll for file (async export like AME)
+  const deadline = Date.now() + 15_000;
+  let fileEntry: any = null;
+  while (Date.now() < deadline) {
+    try {
+      fileEntry = await dataFolder.getEntry(diskFilename);
+      break;
+    } catch { /* not ready */ }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (!fileEntry) throw new Error(`Frame export timeout: ${diskFilename}`);
+
+  const buffer: ArrayBuffer = await fileEntry.read({ format: uxp.storage.formats.binary });
+  await fileEntry.delete();
+  console.log(`[PPRO] exportFrame: done, ${buffer.byteLength} bytes`);
+
+  return buffer;
+}
+
+/**
+ * Apply Lumetri Color corrections to a single video clip.
+ * Adds a new Lumetri effect and sets all parameters in one transaction.
+ */
+export async function applyLumetriToClip(
+  trackIndex: number,
+  clipIndex: number,
+  corrections: LumetriCorrections,
+): Promise<void> {
+  const project = await getActiveProject();
+  const sequence = await getActiveSequence();
+  const track = await sequence.getVideoTrack(trackIndex);
+  const clips = track.getTrackItems(1, false);
+  const clip = clips[clipIndex];
+
+  if (!clip) throw new Error(`Clip [${clipIndex}] not found on track ${trackIndex}`);
+
+  // Create Lumetri component
+  const lumetriComponent = await ppro.VideoFilterFactory.createComponent("AE.ADBE Lumetri");
+  const chain = await clip.getComponentChain();
+
+  // Add Lumetri + set all params in one transaction
+  project.lockedAccess(() => {
+    project.executeTransaction((compoundAction: any) => {
+      // Append Lumetri effect
+      compoundAction.addAction(chain.createAppendComponentAction(lumetriComponent));
+    }, "Apply Color Correction");
+  });
+
+  // Get the newly added Lumetri (last component)
+  const updatedChain = await clip.getComponentChain();
+  const compCount = updatedChain.getComponentCount();
+  const lumetri = updatedChain.getComponentAtIndex(compCount - 1);
+
+  // Set parameters
+  project.lockedAccess(() => {
+    project.executeTransaction((compoundAction: any) => {
+      for (const [key, paramIndex] of Object.entries(LUMETRI_PARAMS)) {
+        const value = corrections[key as keyof LumetriCorrections];
+        if (value === 0 && key !== 'saturation') continue; // skip defaults
+        if (key === 'saturation' && value === 100) continue; // 100 = no change
+
+        const param = lumetri.getParam(paramIndex);
+        const keyframe = param.createKeyframe(value);
+        compoundAction.addAction(param.createSetValueAction(keyframe));
+      }
+    }, "Set Color Correction Values");
+  });
+}
+
+/**
+ * Get the project directory path (parent of project file).
+ */
+export async function getProjectDirectory(): Promise<string> {
+  const project = await getActiveProject();
+  const projectPath = project.path;
+  return projectPath.substring(0, projectPath.lastIndexOf('/'));
 }

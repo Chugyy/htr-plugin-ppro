@@ -1,32 +1,8 @@
 import { loadExistingTranscript, correctTranscription } from '../../core/jobs/transcriptionCorrection';
 import type { CorrectionResponse } from '@/core/types';
+import { setStatus, setErrorStatus } from '@/ui/utils/status';
 
 let currentTranscriptText: string = '';
-let blinkTimer: ReturnType<typeof setInterval> | null = null;
-
-function setStatus(id: string, variant: 'neutral' | 'positive' | 'negative' | 'notice', text: string): void {
-  const container = document.getElementById(id);
-  if (!container) return;
-  const dot = container.querySelector('.status__dot') as HTMLElement | null;
-  const label = container.querySelector('.status__text');
-
-  if (blinkTimer) { clearInterval(blinkTimer); blinkTimer = null; }
-
-  if (dot) {
-    dot.hidden = false;
-    dot.className = 'status__dot status__dot--' + variant;
-    if (variant === 'notice') {
-      let bright = true;
-      blinkTimer = setInterval(() => {
-        dot.style.background = bright ? '#cc7a00' : '#ff9800';
-        bright = !bright;
-      }, 500);
-    } else {
-      dot.style.background = '';
-    }
-  }
-  if (label) label.textContent = text;
-}
 
 export function mountCorrectionHooks(): void {
   const btnLoad = document.getElementById('btn-load-correction');

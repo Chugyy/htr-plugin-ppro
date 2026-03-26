@@ -89,6 +89,54 @@ export interface ClipWithTranscript {
 }
 
 // ========================================
+// VIDEO / COLOR TYPES
+// ========================================
+
+export interface VideoClipInfo {
+  clipName: string;
+  trackIndex: number;
+  sourceFilePath: string;
+  timelineStart: number;
+  timelineEnd: number;
+  timelineDuration: number;
+}
+
+export interface VideoTrackInfo {
+  trackIndex: number;
+  trackName: string;
+  clipCount: number;
+  clips: VideoClipInfo[];
+}
+
+export interface LumetriCorrections {
+  temperature: number;
+  tint: number;
+  exposure: number;
+  contrast: number;
+  highlights: number;
+  shadows: number;
+  whites: number;
+  blacks: number;
+  saturation: number;
+  vibrance: number;
+}
+
+export interface ColorDiagnostics {
+  luminanceMean: number;
+  luminanceStd: number;
+  aShift: number;
+  bShift: number;
+  saturationMean: number;
+  clippedHighlightsPct: number;
+  crushedShadowsPct: number;
+}
+
+export interface ColorAnalysisResponse {
+  diagnostics: ColorDiagnostics;
+  corrections: LumetriCorrections;
+}
+
+// ========================================
 // BACKEND API RESPONSES
 // ========================================
 

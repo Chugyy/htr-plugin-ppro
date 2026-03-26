@@ -16,7 +16,12 @@ export type {
   ClipWithTranscript,
   TranscriptionResponse,
   CorrectionResponse,
-  OptimizationResponse
+  OptimizationResponse,
+  VideoClipInfo,
+  VideoTrackInfo,
+  LumetriCorrections,
+  ColorDiagnostics,
+  ColorAnalysisResponse
 } from './api.types';
 
 // Premiere Pro Types

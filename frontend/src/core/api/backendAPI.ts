@@ -8,7 +8,8 @@ import type {
   PremiereTranscriptJSON,
   TranscriptionResponse,
   CorrectionResponse,
-  OptimizationResponse
+  OptimizationResponse,
+  ColorAnalysisResponse
 } from '@/core/types';
 import { authService } from '@/core/services/authService';
 
@@ -20,6 +21,32 @@ const BACKEND_CONFIG = {
   baseURL: import.meta.env.VITE_BACKEND_URL as string,
   timeout: 30000, // 30 seconds
 };
+
+const DASHBOARD_URL = (import.meta.env.VITE_DASHBOARD_URL as string) || 'https://plugin.hittherecord.com';
+
+/** Open a URL in the user's default browser (UXP shell) */
+export function openInBrowser(url: string): void {
+  try {
+    const { shell } = window.require("uxp") as any;
+    shell.openExternal(url);
+  } catch {
+    console.warn('[BackendClient] Could not open browser:', url);
+  }
+}
+
+/** Error with optional action link for the UI to render a button */
+export class BackendError extends Error {
+  code: string | null;
+  actionUrl: string | null;
+  actionLabel: string | null;
+
+  constructor(message: string, code?: string | null, actionUrl?: string | null, actionLabel?: string | null) {
+    super(message);
+    this.code = code ?? null;
+    this.actionUrl = actionUrl ?? null;
+    this.actionLabel = actionLabel ?? null;
+  }
+}
 
 // ========================================
 // HTTP CLIENT
@@ -57,7 +84,7 @@ export class BackendClient {
       const xhr = new XMLHttpRequest();
       xhr.open(method, url);
       xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+      xhr.setRequestHeader('X-API-Key', apiKey);
       xhr.timeout = timeout;
 
       xhr.onload = () => {
@@ -71,10 +98,42 @@ export class BackendClient {
           }
         } else {
           try {
-            const error = JSON.parse(xhr.responseText);
-            reject(new Error(`HTTP ${xhr.status}: ${error.detail || 'Request failed'}`));
+            const body = JSON.parse(xhr.responseText);
+            // detail can be a string or a structured object {error, code, ...}
+            const detail = body.detail;
+            const code = typeof detail === 'object' ? detail?.code : null;
+            const message = typeof detail === 'object' ? detail?.error : (typeof detail === 'string' ? detail : 'Request failed');
+
+            // Auto-disconnect on invalid key or no subscription
+            if (code === 'INVALID_KEY' || code === 'NO_SUBSCRIPTION') {
+              authService.clear();
+              window.location.reload();
+              return;
+            }
+
+            // Build a human-readable error with action link (no auto-redirect)
+            if (code === 'LIMIT_REACHED' && detail?.used !== undefined) {
+              reject(new BackendError(
+                `Limite atteinte : ${detail.used}/${detail.limit} ${detail.feature || ''} ce mois.`,
+                code,
+                `${DASHBOARD_URL}/register/plan`,
+                'Upgrade mon plan',
+              ));
+              return;
+            }
+            if (code === 'PAYMENT_FAILED') {
+              reject(new BackendError(
+                'Paiement échoué — mets à jour ta carte.',
+                code,
+                `${DASHBOARD_URL}/dashboard/billing`,
+                'Gérer mon abonnement',
+              ));
+              return;
+            }
+
+            reject(new BackendError(message, code));
           } catch {
-            reject(new Error(`HTTP ${xhr.status}: Request failed`));
+            reject(new Error(`Erreur HTTP ${xhr.status}`));
           }
         }
       };
@@ -118,7 +177,7 @@ export class BackendClient {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { 'X-API-Key': apiKey },
       body: formData,
       signal: controller.signal,
     }).finally(() => clearTimeout(timer));
@@ -175,7 +234,7 @@ export class BackendClient {
     const url = `${this.baseURL}/audio/download?path=${encodeURIComponent(serverPath)}`;
     console.log(`[BackendClient] GET ${url}`);
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
     if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
     const buffer = await res.arrayBuffer();
@@ -255,6 +314,65 @@ export class BackendClient {
       },
       timeout: 60000,
     });
+  }
+
+  /**
+   * Upload a frame image for color analysis.
+   * Returns the server-side path.
+   */
+  async uploadFrame(buffer: ArrayBuffer, filename: string): Promise<string> {
+    const apiKey = authService.get();
+    if (!apiKey) throw new Error("Not authenticated");
+
+    const formData = new FormData();
+    formData.append("file", new Blob([buffer], { type: "image/png" }), filename);
+
+    const url = `${this.baseURL}/color/analyze`;
+    console.log(`[BackendClient] POST ${url} (${filename})`);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { 'X-API-Key': apiKey },
+      body: formData,
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail = (err as any).detail;
+      const code = typeof detail === 'object' ? detail?.code : null;
+      const message = typeof detail === 'object' ? detail?.error : (typeof detail === 'string' ? detail : `HTTP ${res.status}`);
+
+      if (code === 'INVALID_KEY' || code === 'NO_SUBSCRIPTION') {
+        authService.clear();
+        window.location.reload();
+        throw new Error(message);
+      }
+      if (code === 'LIMIT_REACHED') {
+        throw new BackendError(
+          `Limite atteinte : ${detail.used}/${detail.limit} corrections couleur ce mois.`,
+          code,
+          `${DASHBOARD_URL}/register/plan`,
+          'Upgrade mon plan',
+        );
+      }
+      throw new BackendError(message, code);
+    }
+
+    const data = await res.json() as ColorAnalysisResponse;
+    console.log(`[BackendClient] Color analysis:`, data.corrections);
+    return data as any;
+  }
+
+  /**
+   * Analyze a frame for color correction.
+   * Uploads the frame and returns Lumetri corrections in one call.
+   */
+  async analyzeFrame(buffer: ArrayBuffer, filename: string): Promise<ColorAnalysisResponse> {
+    return this.uploadFrame(buffer, filename) as unknown as ColorAnalysisResponse;
   }
 
   /**

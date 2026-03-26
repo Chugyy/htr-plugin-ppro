@@ -1,0 +1,53 @@
+
+<!-- ── Étape 1 : Charger la séquence ──────────────────────── -->
+<div class="step">
+  <div class="step__row">
+    <div class="step__text">
+      <div class="step__title">Charger la séquence</div>
+      <p class="step__desc">Scanne les pistes vidéo et leurs clips.</p>
+    </div>
+    <div id="btn-load-color" class="btn" role="button" tabindex="0">
+      <span class="btn__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="8" r="2" fill="currentColor"/>
+          <circle cx="8" cy="14" r="2" fill="currentColor"/>
+          <circle cx="16" cy="14" r="2" fill="currentColor"/>
+        </svg>
+      </span>
+      Charger
+    </div>
+  </div>
+</div>
+
+<div id="color-loaded" hidden>
+
+  <!-- ── Étape 2 : Sélectionner les pistes ─────────────────── -->
+  <div class="step">
+    <div class="step__text">
+      <div class="step__title">Pistes à corriger</div>
+      <p class="step__desc">Cochez les pistes vidéo à traiter. Les clips partageant le même fichier source recevront automatiquement la même correction colorimétrique.</p>
+    </div>
+    <div id="color-track-group" class="track__list"></div>
+  </div>
+
+  <!-- ── Étape 3 : Lancer ──────────────────────────────────── -->
+  <div class="step">
+    <div class="step__row">
+      <div class="step__text">
+        <div class="step__title">Lancer la correction</div>
+        <p class="step__desc">Exporte une frame par média, analyse les couleurs et applique un Lumetri Color à chaque clip.</p>
+      </div>
+      <div id="btn-correct" class="btn btn--primary" role="button" tabindex="0">Corriger</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Status ───────────────────────────────────────────────── -->
+<div class="status-wrapper">
+  <div id="color-status" class="status">
+    <span class="status__dot status__dot--neutral"></span>
+    <span class="status__text">Prêt</span>
+  </div>
+</div>
