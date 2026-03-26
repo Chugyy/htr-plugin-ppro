@@ -8,6 +8,7 @@ _PLAN_LIMITS: dict[str, dict[str, int]] = {
     "starter": {"transcriptions": 15, "corrections": 15, "derushages": 15, "normalizations": 15, "color_corrections": 15},
     "pro":     {"transcriptions": 60, "corrections": 60, "derushages": 60, "normalizations": 60, "color_corrections": 60},
     "agency":  {"transcriptions": 60, "corrections": 60, "derushages": 60, "normalizations": 60, "color_corrections": 60},
+    "unlimited": {"transcriptions": 999999, "corrections": 999999, "derushages": 999999, "normalizations": 999999, "color_corrections": 999999},
 }
 
 _ZERO_LIMITS: dict[str, int] = {

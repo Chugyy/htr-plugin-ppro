@@ -17,7 +17,7 @@ class UserOut(BaseSchema):
     id: UUID
     email: EmailStr
     name: str
-    plan: Literal["free", "starter", "pro", "agency"]
+    plan: Literal["free", "starter", "pro", "agency", "unlimited"]
     subscription_status: Literal["none", "trialing", "active", "past_due", "cancelled", "banned"]
     email_verified: bool = False
     created_at: datetime

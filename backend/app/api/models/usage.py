@@ -17,7 +17,7 @@ class FeatureUsage(BaseSchema):
 
 
 class UsageCurrentResponse(BaseSchema):
-    plan: Literal["free", "trial", "starter", "pro", "agency"]
+    plan: Literal["free", "trial", "starter", "pro", "agency", "unlimited"]
     period: str  # "YYYY-MM"
     features: dict[
         Literal["transcription", "correction", "derushing", "normalization", "color_correction"],
