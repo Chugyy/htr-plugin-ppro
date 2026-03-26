@@ -3,24 +3,37 @@
  */
 
 import type { VideoTrackInfo } from '@/core/types';
-import { loadVideoTracks, runColorCorrection } from '@/core/jobs/colorCorrection';
+import { loadVideoTracks, runColorCorrection, resetColorCorrection } from '@/core/jobs/colorCorrection';
+import type { CorrectedClip } from '@/core/jobs/colorCorrection';
 import { setStatus, setErrorStatus } from '@/ui/utils/status';
 
 // ── State ──────────────────────────────────────────────
 
 let tracks: VideoTrackInfo[] = [];
 let selectedIndices: Set<number> = new Set();
+let correctedClips: CorrectedClip[] = [];
 
 // ── Helpers ────────────────────────────────────────────
 
-// No disabled state — validation is in handleCorrect
+function updateButtons(): void {
+  const btnCorrect = document.getElementById('btn-correct');
+  const btnReset = document.getElementById('btn-reset-color');
+  if (!btnCorrect || !btnReset) return;
+
+  if (correctedClips.length > 0) {
+    btnCorrect.setAttribute('hidden', '');
+    btnReset.removeAttribute('hidden');
+  } else {
+    btnCorrect.removeAttribute('hidden');
+    btnReset.setAttribute('hidden', '');
+  }
+}
 
 function renderTracks(): void {
   const container = document.getElementById('color-track-group');
   if (!container) return;
 
   container.innerHTML = tracks.map(track => {
-    // Count unique media sources
     const uniqueMedia = new Set(track.clips.map(c => c.sourceFilePath)).size;
 
     return `
@@ -34,16 +47,12 @@ function renderTracks(): void {
     `;
   }).join('');
 
-  // Bind checkbox events (use both change + click for UXP compatibility)
   container.querySelectorAll<HTMLInputElement>('.color-track-cb').forEach(cb => {
-    const handler = () => {
+    cb.addEventListener('change', () => {
       const idx = parseInt(cb.value);
-      console.log(`[COLOR] Checkbox track ${idx}: checked=${cb.checked}`);
       if (cb.checked) selectedIndices.add(idx);
       else selectedIndices.delete(idx);
-      console.log(`[COLOR] selectedIndices: [${[...selectedIndices].join(',')}]`);
-    };
-    cb.addEventListener('change', handler);
+    });
   });
 }
 
@@ -61,7 +70,9 @@ async function handleLoad(): Promise<void> {
     }
 
     selectedIndices.clear();
+    correctedClips = [];
     renderTracks();
+    updateButtons();
     document.getElementById('color-loaded')?.removeAttribute('hidden');
 
     const totalClips = tracks.reduce((n, t) => n + t.clipCount, 0);
@@ -75,7 +86,6 @@ async function handleLoad(): Promise<void> {
 // ── Run correction ─────────────────────────────────────
 
 async function handleCorrect(): Promise<void> {
-  console.log(`[COLOR] handleCorrect clicked! selectedIndices=${[...selectedIndices]}`);
   if (selectedIndices.size === 0) {
     setErrorStatus('color-status', 'Sélectionnez au moins une piste');
     return;
@@ -90,10 +100,11 @@ async function handleCorrect(): Promise<void> {
           ? ` (${progress.current}/${progress.total})`
           : '';
         setStatus('color-status', progress.stage === 'error' ? 'error' : 'loading', `${progress.message}${pct}`);
-        console.log(`[COLOR] ${progress.stage}: ${progress.message}${pct}`);
       },
     );
 
+    correctedClips = result.correctedClips;
+    updateButtons();
     setStatus('color-status', 'success', `Terminé — ${result.mediaCount} média(s), ${result.clipCount} clip(s)`);
   } catch (err: any) {
     console.error('[COLOR] Correction failed:', err);
@@ -101,10 +112,34 @@ async function handleCorrect(): Promise<void> {
   }
 }
 
+// ── Reset correction ───────────────────────────────────
+
+async function handleReset(): Promise<void> {
+  if (correctedClips.length === 0) return;
+
+  try {
+    await resetColorCorrection(
+      correctedClips,
+      (progress) => {
+        const pct = progress.current && progress.total
+          ? ` (${progress.current}/${progress.total})`
+          : '';
+        setStatus('color-status', 'loading', `${progress.message}${pct}`);
+      },
+    );
+
+    correctedClips = [];
+    updateButtons();
+    setStatus('color-status', 'success', 'Corrections supprimées');
+  } catch (err: any) {
+    console.error('[COLOR] Reset failed:', err);
+    setErrorStatus('color-status', err.message);
+  }
+}
+
 // ── Mount ──────────────────────────────────────────────
 
 export function mountColorHooks(): void {
-  // Use event delegation on the tab panel — reliable in UXP for innerHTML-injected elements
   const panel = document.getElementById('tab-color');
   if (!panel) return;
 
@@ -112,11 +147,8 @@ export function mountColorHooks(): void {
     const target = (e.target as HTMLElement).closest?.('[id]') as HTMLElement | null;
     if (!target) return;
 
-    if (target.id === 'btn-load-color') {
-      handleLoad();
-    } else if (target.id === 'btn-correct') {
-      console.log('[COLOR] btn-correct click via delegation');
-      handleCorrect();
-    }
+    if (target.id === 'btn-load-color') handleLoad();
+    else if (target.id === 'btn-correct') handleCorrect();
+    else if (target.id === 'btn-reset-color') handleReset();
   });
 }

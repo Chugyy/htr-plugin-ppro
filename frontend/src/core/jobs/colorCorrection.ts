@@ -12,6 +12,7 @@ import {
   getVideoTracks,
   exportFrame,
   applyLumetriToClip,
+  removeLumetriFromClip,
 } from '@/core/api/premiereProAPI';
 import { backendClient } from '@/core/api/backendAPI';
 
@@ -34,11 +35,16 @@ export async function loadVideoTracks(): Promise<VideoTrackInfo[]> {
 /**
  * Run color correction on selected tracks.
  */
+export interface CorrectedClip {
+  trackIndex: number;
+  clipIndex: number;
+}
+
 export async function runColorCorrection(
   selectedTrackIndices: number[],
   allTracks: VideoTrackInfo[],
   onProgress: ProgressCallback,
-): Promise<{ mediaCount: number; clipCount: number }> {
+): Promise<{ mediaCount: number; clipCount: number; correctedClips: CorrectedClip[] }> {
   // 1. Gather clips from selected tracks
   onProgress({ stage: 'scanning', message: 'Analyse des pistes sélectionnées...' });
 
@@ -96,6 +102,7 @@ export async function runColorCorrection(
   // 4. Apply corrections to each clip
   let clipIdx = 0;
   const totalClips = allClips.length;
+  const correctedClips: CorrectedClip[] = [];
 
   for (const track of selectedTracks) {
     for (let c = 0; c < track.clips.length; c++) {
@@ -127,10 +134,36 @@ export async function runColorCorrection(
       const realClipIdx = trackData.clips.indexOf(clip);
 
       await applyLumetriToClip(clip.trackIndex, realClipIdx, clipCorrections);
+      correctedClips.push({ trackIndex: clip.trackIndex, clipIndex: realClipIdx });
     }
   }
 
-  onProgress({ stage: 'done', message: `Terminé — ${mediaCount} média(s), ${totalClips} clip(s) corrigé(s)` });
+  onProgress({ stage: 'done', message: `Terminé — ${mediaCount} média(s), ${correctedClips.length} clip(s) corrigé(s)` });
 
-  return { mediaCount, clipCount: totalClips };
+  return { mediaCount, clipCount: correctedClips.length, correctedClips };
+}
+
+/**
+ * Remove Lumetri corrections from previously corrected clips.
+ */
+export async function resetColorCorrection(
+  correctedClips: CorrectedClip[],
+  onProgress: ProgressCallback,
+): Promise<void> {
+  onProgress({ stage: 'applying', message: 'Suppression des corrections...' });
+
+  let removed = 0;
+  for (let i = 0; i < correctedClips.length; i++) {
+    const { trackIndex, clipIndex } = correctedClips[i];
+    onProgress({
+      stage: 'applying',
+      message: `Suppression Lumetri...`,
+      current: i + 1,
+      total: correctedClips.length,
+    });
+    const ok = await removeLumetriFromClip(trackIndex, clipIndex);
+    if (ok) removed++;
+  }
+
+  onProgress({ stage: 'done', message: `Réinitialisé — ${removed} clip(s)` });
 }

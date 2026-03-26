@@ -640,6 +640,41 @@ export async function applyLumetriToClip(
 }
 
 /**
+ * Remove the last Lumetri Color effect from a video clip.
+ */
+export async function removeLumetriFromClip(
+  trackIndex: number,
+  clipIndex: number,
+): Promise<boolean> {
+  const project = await getActiveProject();
+  const sequence = await getActiveSequence();
+  const track = await sequence.getVideoTrack(trackIndex);
+  const clips = track.getTrackItems(1, false);
+  const clip = clips[clipIndex];
+
+  if (!clip) return false;
+
+  const chain = await clip.getComponentChain();
+  const compCount = chain.getComponentCount();
+
+  // Find the last Lumetri in the chain
+  for (let i = compCount - 1; i >= 0; i--) {
+    const comp = chain.getComponentAtIndex(i);
+    const matchName = await comp.getMatchName();
+    if (matchName.includes('Lumetri')) {
+      project.lockedAccess(() => {
+        project.executeTransaction((compoundAction: any) => {
+          compoundAction.addAction(chain.createRemoveComponentAction(comp));
+        }, "Remove Color Correction");
+      });
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Get the project directory path (parent of project file).
  */
 export async function getProjectDirectory(): Promise<string> {
