@@ -6,7 +6,9 @@
     "dev": "vite build --watch --mode development",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
-    "package": "vite build --mode production && cd build/prod && zip -r ../../htr-plugin.ccx . && cd ../.. && mkdir -p ../backend/static && cp htr-plugin.ccx ../backend/static/htr-plugin.ccx && echo '✅ Packaged → htr-plugin.ccx + backend/static/'"
+    "package": "vite build --mode production && cd build/prod && zip -r ../../htr-plugin.ccx . && cd ../.. && echo '✅ Packaged → htr-plugin.ccx'",
+    "publish": "npm run package && curl -s -X POST -H 'X-Upload-Secret: htr-plugin-upload-2026' -F 'file=@htr-plugin.ccx' -F 'version='$(node -p 'require(\"./package.json\").version') https://htr-plugin-api.multimodal-house.fr/plugin/upload && echo ' ✅ Published'",
+    "publish:local": "npm run package && curl -s -X POST -H 'X-Upload-Secret: htr-plugin-upload-2026' -F 'file=@htr-plugin.ccx' -F 'version='$(node -p 'require(\"./package.json\").version') http://localhost:5001/plugin/upload && echo ' ✅ Published (local)'"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",
