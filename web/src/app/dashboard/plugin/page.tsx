@@ -3,7 +3,7 @@
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Download } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+// Download goes through Next.js rewrites (same domain)
 const LOOM_URL = "https://www.loom.com/share/4ea3dfba46e8421abf6912aef95d01f4";
 const LOOM_EMBED = "https://www.loom.com/embed/4ea3dfba46e8421abf6912aef95d01f4";
 
@@ -28,7 +28,7 @@ export default function PluginPage() {
               </p>
             </div>
             <a
-              href={`${API_URL}/plugin/download`}
+              href="/plugin/download"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium hover:opacity-90 transition-opacity"
             >
               <Download className="h-4 w-4" />

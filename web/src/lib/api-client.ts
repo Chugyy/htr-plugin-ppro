@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+// API calls go through Next.js rewrites (same domain = cookies work)
+const API_URL = "";
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const response = await fetch(`${API_URL}${path}`, {

@@ -1,32 +1,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString());
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const token = request.cookies.get("access_token")?.value;
-  const { pathname } = request.nextUrl;
 
-  // No token → redirect to login (except public pages handled by matcher)
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  // Protect /register/plan: check email_verified via /api/auth/me
-  if (pathname === "/register/plan") {
-    try {
-      const res = await fetch(`${API_URL}/api/auth/me`, {
-        headers: { Cookie: `access_token=${token}` },
-      });
-      if (res.ok) {
-        const user = await res.json();
-        if (!user.emailVerified && !user.email_verified) {
-          return NextResponse.redirect(new URL("/register/verify", request.url));
-        }
-      }
-    } catch {
-      // If API is down, let the page handle it
-    }
   }
 
   return NextResponse.next();
