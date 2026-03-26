@@ -91,9 +91,8 @@ app.add_middleware(
 )
 
 # --- Existing routers (audio processing) ---
-from app.api.routes import health, audio, auth, tasks, color, plugin
+from app.api.routes import health, audio, tasks, color, plugin
 app.include_router(health.router)
-app.include_router(auth.router)       # legacy static key auth
 app.include_router(audio.router)
 app.include_router(color.router)
 app.include_router(plugin.router)

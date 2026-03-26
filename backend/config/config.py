@@ -13,9 +13,6 @@ class Settings(BaseSettings):
     debug: bool = Field(True, env="DEBUG")
     production: bool = Field(False, env="PRODUCTION")
 
-    # API Security (legacy static key — kept for backward compat during migration)
-    api_key: str = Field("audio-assistant-dev-key-2026", env="API_KEY")
-
     # Database
     db_host: str = Field("localhost", env="DB_HOST")
     db_port: int = Field(5432, env="DB_PORT")
