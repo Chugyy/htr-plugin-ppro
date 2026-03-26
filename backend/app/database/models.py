@@ -50,7 +50,7 @@ class User(Base):
     team_memberships      = relationship('TeamMember', back_populates='user', cascade='all, delete-orphan')
 
     __table_args__ = (
-        CheckConstraint("plan IN ('free', 'starter', 'pro', 'agency')", name='ck_users_plan'),
+        CheckConstraint("plan IN ('free', 'starter', 'pro', 'agency', 'unlimited')", name='ck_users_plan'),
         CheckConstraint("subscription_status IN ('none', 'trialing', 'active', 'past_due', 'cancelled', 'banned')", name='ck_users_subscription_status'),
     )
 

@@ -13,7 +13,7 @@ from app.api.models.common import BaseSchema
 # ---------------------------------------------------------------------------
 
 PlanKey = Literal["starter_monthly", "starter_annual", "pro_monthly", "pro_annual", "agency_monthly"]
-PlanName = Literal["free", "starter", "pro", "agency"]
+PlanName = Literal["free", "starter", "pro", "agency", "unlimited"]
 SubscriptionStatus = Literal["none", "trialing", "active", "past_due", "cancelled", "banned"]
 
 
