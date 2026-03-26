@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build:dev": "vite build --mode development",
-    "build:prod": "vite build --mode production"
+    "build:prod": "vite build --mode production",
+    "package": "vite build --mode production && cd build/prod && zip -r ../../htr-plugin.ccx . && cd ../.. && mkdir -p ../backend/static && cp htr-plugin.ccx ../backend/static/htr-plugin.ccx && echo '✅ Packaged → htr-plugin.ccx + backend/static/'"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",
