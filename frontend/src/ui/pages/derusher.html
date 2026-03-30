@@ -34,7 +34,31 @@
     <div id="derusher-track-selector"></div>
   </div>
 
-  <!-- ── Étape 3 : Lancer ──────────────────────────────────── -->
+  <!-- ── Étape 3 : Paramètres ───────────────────────────────── -->
+  <div class="step">
+    <div class="step__title">Paramètres</div>
+    <p class="step__desc" style="margin-bottom: var(--space-md);">Ajustez la sensibilité de la détection des silences.</p>
+
+    <div class="field">
+      <label class="field__label" for="derusher-threshold">Seuil de silence : <span id="derusher-threshold-val">-30 dB</span></label>
+      <input type="range" id="derusher-threshold" min="-50" max="-10" step="1" value="-30">
+      <p class="step__desc">Plus bas = détecte plus de silences (plus agressif)</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="derusher-min-duration">Durée min. du silence : <span id="derusher-min-duration-val">0.5s</span></label>
+      <input type="range" id="derusher-min-duration" min="0.2" max="2.0" step="0.1" value="0.5">
+      <p class="step__desc">Les silences plus courts seront ignorés</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label" for="derusher-padding">Marge parole : <span id="derusher-padding-val">0.20s</span></label>
+      <input type="range" id="derusher-padding" min="0" max="0.5" step="0.05" value="0.2">
+      <p class="step__desc">Espace conservé avant/après chaque segment de parole</p>
+    </div>
+  </div>
+
+  <!-- ── Étape 4 : Lancer ──────────────────────────────────── -->
   <div class="step">
     <div class="step__row">
       <div class="step__text">
@@ -42,6 +66,11 @@
         <p class="step__desc">Détecte les silences réels puis les supprime automatiquement. Annulable via Ctrl+Z.</p>
       </div>
       <div id="btn-remove-silences" class="btn btn--primary btn--disabled" role="button" tabindex="0">Dérusher</div>
+    </div>
+
+    <!-- Warning transcription (hidden by default) -->
+    <div id="derusher-transcript-warning" class="info-box info-box--warning" hidden>
+      Une transcription existe sur cette séquence. Le dérush l'invalidera — vous devrez la régénérer.
     </div>
   </div>
 

@@ -5,14 +5,20 @@
  * 2. Group clips by source media (unique file path)
  * 3. For each unique media: export 1 frame → upload → analyze → get corrections
  * 4. For each clip: apply Lumetri with its media's corrections
+ *
+ * Supports LOG footage detection (auto or manual profile selection).
+ * Full reset: removes ALL Lumetri effects added by the plugin, allowing
+ * the user to retry with a different profile without accumulating effects.
  */
 
-import type { VideoTrackInfo, LumetriCorrections } from '@/core/types';
+import type { VideoTrackInfo, LumetriCorrections, LogDetection } from '@/core/types';
+import type { LogProfile } from '@/core/types';
 import {
   getVideoTracks,
   exportFrame,
   applyLumetriToClip,
   removeLumetriFromClip,
+  clipHasLumetri,
 } from '@/core/api/premiereProAPI';
 import { backendClient } from '@/core/api/backendAPI';
 
@@ -33,6 +39,24 @@ export async function loadVideoTracks(): Promise<VideoTrackInfo[]> {
 }
 
 /**
+ * Scan all tracks for clips that already have a Lumetri effect.
+ * Used on sequence load to restore the "Reset" button state.
+ */
+export async function detectExistingLumetri(tracks: VideoTrackInfo[]): Promise<CorrectedClip[]> {
+  const found: CorrectedClip[] = [];
+  for (const track of tracks) {
+    for (let c = 0; c < track.clips.length; c++) {
+      try {
+        if (await clipHasLumetri(track.trackIndex, c)) {
+          found.push({ trackIndex: track.trackIndex, clipIndex: c });
+        }
+      } catch { /* skip inaccessible clips */ }
+    }
+  }
+  return found;
+}
+
+/**
  * Run color correction on selected tracks.
  */
 export interface CorrectedClip {
@@ -43,8 +67,9 @@ export interface CorrectedClip {
 export async function runColorCorrection(
   selectedTrackIndices: number[],
   allTracks: VideoTrackInfo[],
+  logProfile: LogProfile,
   onProgress: ProgressCallback,
-): Promise<{ mediaCount: number; clipCount: number; correctedClips: CorrectedClip[] }> {
+): Promise<{ mediaCount: number; clipCount: number; correctedClips: CorrectedClip[]; logDetections: Map<string, LogDetection> }> {
   // 1. Gather clips from selected tracks
   onProgress({ stage: 'scanning', message: 'Analyse des pistes sélectionnées...' });
 
@@ -66,6 +91,7 @@ export async function runColorCorrection(
 
   // 3. For each unique media: export frame → analyze → store corrections
   const corrections = new Map<string, LumetriCorrections>();
+  const logDetections = new Map<string, LogDetection>();
 
   let mediaIdx = 0;
   for (const [mediaPath, clips] of mediaGroups) {
@@ -78,14 +104,12 @@ export async function runColorCorrection(
       total: mediaCount,
     });
 
-    // Export a frame from the middle of the first clip of this media
     const firstClip = clips[0];
     const midTime = firstClip.timelineStart + firstClip.timelineDuration / 2;
     const frameFilename = `frame_${mediaIdx}.png`;
 
     const frameBuffer = await exportFrame(midTime, frameFilename);
 
-    // Upload + analyze
     onProgress({
       stage: 'analyzing',
       message: `Analyse: ${mediaName}`,
@@ -93,10 +117,15 @@ export async function runColorCorrection(
       total: mediaCount,
     });
 
-    const response = await backendClient.analyzeFrame(frameBuffer, frameFilename);
+    const response = await backendClient.analyzeFrame(frameBuffer, frameFilename, logProfile);
     corrections.set(mediaPath, response.corrections);
+    logDetections.set(mediaPath, response.logDetection);
 
-    console.log(`[COLOR] ${mediaName}: temp=${response.corrections.temperature}, expo=${response.corrections.exposure}`);
+    const ld = response.logDetection;
+    const logLabel = ld.isLog
+      ? `LOG détecté (${ld.estimatedProfile}, ${Math.round(ld.confidence * 100)}%)`
+      : 'Standard';
+    console.log(`[COLOR] ${mediaName}: ${logLabel}, expo=${response.corrections.exposure}, contrast=${response.corrections.contrast}`);
   }
 
   // 4. Apply corrections to each clip
@@ -112,7 +141,6 @@ export async function runColorCorrection(
       const clipCorrections = corrections.get(clip.sourceFilePath);
       if (!clipCorrections) continue;
 
-      // Skip if all corrections are neutral
       const hasCorrection = Object.entries(clipCorrections).some(([key, val]) => {
         if (key === 'saturation') return val !== 100;
         return val !== 0;
@@ -122,14 +150,17 @@ export async function runColorCorrection(
         continue;
       }
 
+      // Build status message with LOG info
+      const ld = logDetections.get(clip.sourceFilePath);
+      const logTag = ld?.isLog ? ` [${ld.estimatedProfile}]` : '';
+
       onProgress({
         stage: 'applying',
-        message: `Lumetri: ${clip.clipName}`,
+        message: `Lumetri${logTag}: ${clip.clipName}`,
         current: clipIdx,
         total: totalClips,
       });
 
-      // Find the real clip index within its track
       const trackData = allTracks.find(t => t.trackIndex === clip.trackIndex)!;
       const realClipIdx = trackData.clips.indexOf(clip);
 
@@ -138,13 +169,18 @@ export async function runColorCorrection(
     }
   }
 
-  onProgress({ stage: 'done', message: `Terminé — ${mediaCount} média(s), ${correctedClips.length} clip(s) corrigé(s)` });
+  // Build summary with LOG detection info
+  const logCount = [...logDetections.values()].filter(d => d.isLog).length;
+  const logSummary = logCount > 0 ? ` (${logCount} LOG)` : '';
+  onProgress({ stage: 'done', message: `Terminé — ${mediaCount} média(s)${logSummary}, ${correctedClips.length} clip(s) corrigé(s)` });
 
-  return { mediaCount, clipCount: correctedClips.length, correctedClips };
+  return { mediaCount, clipCount: correctedClips.length, correctedClips, logDetections };
 }
 
 /**
- * Remove Lumetri corrections from previously corrected clips.
+ * Remove ALL Lumetri corrections added by the plugin from previously corrected clips.
+ * Removes every Lumetri effect on each clip (not just the last one),
+ * so the user can safely retry with a different LOG profile.
  */
 export async function resetColorCorrection(
   correctedClips: CorrectedClip[],
@@ -161,9 +197,13 @@ export async function resetColorCorrection(
       current: i + 1,
       total: correctedClips.length,
     });
-    const ok = await removeLumetriFromClip(trackIndex, clipIndex);
-    if (ok) removed++;
+    // Remove all Lumetri effects (loop until none left)
+    let hadLumetri = true;
+    while (hadLumetri) {
+      hadLumetri = await removeLumetriFromClip(trackIndex, clipIndex);
+      if (hadLumetri) removed++;
+    }
   }
 
-  onProgress({ stage: 'done', message: `Réinitialisé — ${removed} clip(s)` });
+  onProgress({ stage: 'done', message: `Réinitialisé — ${removed} effet(s) supprimé(s)` });
 }

@@ -28,9 +28,19 @@ class ColorDiagnostics(BaseSchema):
     saturation_mean: float
     clipped_highlights_pct: float
     crushed_shadows_pct: float
+    midtone_concentration_pct: float
+
+
+class LogDetection(BaseSchema):
+    """LOG footage detection result."""
+    is_log: bool = Field(..., description="Whether footage is LOG-encoded")
+    confidence: float = Field(..., ge=0, le=1, description="Detection confidence 0-1")
+    estimated_profile: str = Field(..., description="Detected profile key or 'none'")
+    forced: bool = Field(..., description="True if user forced the profile")
 
 
 class ColorAnalysisResponse(BaseSchema):
     """Response from color analysis endpoint."""
     diagnostics: ColorDiagnostics
+    log_detection: LogDetection
     corrections: LumetriCorrections

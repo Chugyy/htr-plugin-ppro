@@ -7,33 +7,17 @@
 </head>
 <body>
   <div id="app">
+    <!-- AME missing banner (hidden by default, shown by main.ts) -->
+    <div id="ame-missing-banner" class="info-box info-box--warning" hidden style="margin: var(--space-sm);">
+      Adobe Media Encoder n'est pas d&#233;tect&#233;. Installez-le via Creative Cloud pour utiliser le d&#233;rush, la transcription et l'optimisation audio.
+    </div>
+
     <div class="tabs-container" hidden>
 
       <nav class="tab__nav">
 
-        <!-- Generation — lightning bolt (ios7 style) -->
-        <div class="tab__btn tab__btn--active" role="tab" tabindex="0" data-tab="generation">
-          <span class="tab__icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
-            </svg>
-          </span>
-          <span>Génération</span>
-        </div>
-
-        <!-- Correction — pencil (ios7 style) -->
-        <div class="tab__btn" role="tab" tabindex="0" data-tab="correction">
-          <span class="tab__icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16.5 3.5L20.5 7.5L8 20H4V16L16.5 3.5Z"/>
-              <line x1="14" y1="6" x2="18" y2="10"/>
-            </svg>
-          </span>
-          <span>Correction</span>
-        </div>
-
-        <!-- Derusher — scissors (ios7 style) -->
-        <div class="tab__btn" role="tab" tabindex="0" data-tab="derusher">
+        <!-- Derusher — scissors (first tab) -->
+        <div class="tab__btn tab__btn--active" role="tab" tabindex="0" data-tab="derusher">
           <span class="tab__icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="6" cy="6" r="3"/>
@@ -46,7 +30,28 @@
           <span>D&#233;rusher</span>
         </div>
 
-        <!-- Color — palette (test) -->
+        <!-- Transcription — lightning bolt -->
+        <div class="tab__btn" role="tab" tabindex="0" data-tab="generation">
+          <span class="tab__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L4.5 13.5H11L10 22L19.5 10.5H13L13 2Z"/>
+            </svg>
+          </span>
+          <span>Transcription</span>
+        </div>
+
+        <!-- Correction — pencil -->
+        <div class="tab__btn" role="tab" tabindex="0" data-tab="correction">
+          <span class="tab__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16.5 3.5L20.5 7.5L8 20H4V16L16.5 3.5Z"/>
+              <line x1="14" y1="6" x2="18" y2="10"/>
+            </svg>
+          </span>
+          <span>Correction</span>
+        </div>
+
+        <!-- Color — palette -->
         <div class="tab__btn" role="tab" tabindex="0" data-tab="color">
           <span class="tab__icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -59,7 +64,7 @@
           <span>Color</span>
         </div>
 
-        <!-- Audio — waveform (ios7 style) -->
+        <!-- Audio — waveform -->
         <div class="tab__btn" role="tab" tabindex="0" data-tab="audio">
           <span class="tab__icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -76,9 +81,9 @@
 
       </nav>
 
-      <div id="tab-generation" class="tab__panel tab__panel--active"></div>
+      <div id="tab-derusher" class="tab__panel tab__panel--active"></div>
+      <div id="tab-generation" class="tab__panel"></div>
       <div id="tab-correction" class="tab__panel"></div>
-      <div id="tab-derusher" class="tab__panel"></div>
       <div id="tab-color" class="tab__panel"></div>
       <div id="tab-audio" class="tab__panel"></div>
 

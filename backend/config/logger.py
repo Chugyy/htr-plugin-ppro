@@ -15,11 +15,24 @@ except ImportError:
     LOG_LEVEL = logging.INFO
     APP_NAME = "HTR Pr. Plugin Backend"
 
-LOG_FORMAT = "%(asctime)s — %(name)s — %(levelname)s — %(message)s"
+LOG_FORMAT = "%(asctime)s — %(name)s — %(levelname)s — [%(request_id)s] — %(message)s"
 LOG_FILE = Path("logs/app.log")
 
 # Create logs directory if it doesn't exist
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+
+class RequestIdFilter(logging.Filter):
+    """Inject the current request_id from ContextVar into every log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            from app.api.middleware.request_id import request_id_var
+            record.request_id = request_id_var.get("-")
+        except Exception:
+            record.request_id = "-"
+        return True
+
 
 formatter = logging.Formatter(LOG_FORMAT)
 
@@ -38,6 +51,7 @@ console_handler.setFormatter(formatter)
 # Logger principal
 logger = logging.getLogger(APP_NAME)
 logger.setLevel(LOG_LEVEL)
+logger.addFilter(RequestIdFilter())
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 

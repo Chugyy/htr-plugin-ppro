@@ -22,6 +22,31 @@ const ppro = window.require("premierepro") as PremiereProAPI;
 const uxp = window.require("uxp") as any;
 
 // ========================================
+// TRANSACTION SERIALIZATION
+// ========================================
+
+const TRANSACTION_DELAY = 150; // ms between transactions to avoid PPro crashes
+let transactionChain: Promise<void> = Promise.resolve();
+
+/**
+ * Serialize PPro transactions: each waits for the previous one + 150ms gap.
+ * Drop-in replacement for `project.lockedAccess(() => project.executeTransaction(...))`.
+ */
+export function safeTransaction(
+  project: Project,
+  label: string,
+  fn: (compoundAction: any) => void,
+): Promise<void> {
+  transactionChain = transactionChain.then(async () => {
+    project.lockedAccess(() => {
+      project.executeTransaction(fn, label);
+    });
+    await new Promise(r => setTimeout(r, TRANSACTION_DELAY));
+  });
+  return transactionChain;
+}
+
+// ========================================
 // PROJECT & SEQUENCE
 // ========================================
 
@@ -306,24 +331,22 @@ export async function importOptimizedClips(
 
   // 5. Place clips in a single undoable transaction
   const editor = ppro.SequenceEditor.getEditor(sequence);
-  project.lockedAccess(() => {
-    project.executeTransaction((compoundAction) => {
-      optimizedTracks.forEach((track, i) => {
-        const audioTrackIndex = trackAssignments[i];
-        track.clips.forEach((clip) => {
-          const localPath = serverToLocal.get(clip.optimizedPath)!;
-          const filename = localPath.split('/').pop()!;
-          const projectItem = itemMap.get(filename);
-          if (!projectItem) {
-            console.warn(`[PPRO:5] SKIP — item not found: "${filename}"`);
-            return;
-          }
-          const tickTime = ppro.TickTime.createWithSeconds(clip.timelineStart);
-          const action = editor.createOverwriteItemAction(projectItem, tickTime, -1, audioTrackIndex);
-          compoundAction.addAction(action);
-        });
+  await safeTransaction(project, "Import Optimized Audio", (compoundAction) => {
+    optimizedTracks.forEach((track, i) => {
+      const audioTrackIndex = trackAssignments[i];
+      track.clips.forEach((clip) => {
+        const localPath = serverToLocal.get(clip.optimizedPath)!;
+        const filename = localPath.split('/').pop()!;
+        const projectItem = itemMap.get(filename);
+        if (!projectItem) {
+          console.warn(`[PPRO:5] SKIP — item not found: "${filename}"`);
+          return;
+        }
+        const tickTime = ppro.TickTime.createWithSeconds(clip.timelineStart);
+        const action = editor.createOverwriteItemAction(projectItem, tickTime, -1, audioTrackIndex);
+        compoundAction.addAction(action);
       });
-    }, "Import Optimized Audio");
+    });
   });
   console.log(`[PPRO:6] Import done — ${optimizedTracks.reduce((n, t) => n + t.clips.length, 0)} clip(s) placed`);
 }
@@ -363,16 +386,14 @@ export async function importTranscript(
 
     // Execute transaction (undoable) with locked access
     let success = false;
-    project.lockedAccess(() => {
-      success = project.executeTransaction((compoundAction) => {
-        // Import JSON → TextSegments and create action INSIDE transaction
-        const textSegments = ppro.Transcript.importFromJSON(jsonString);
-        const importAction = ppro.Transcript.createImportTextSegmentsAction(
-          textSegments,
-          clipProjectItem
-        );
-        compoundAction.addAction(importAction);
-      }, "Import Transcript");
+    await safeTransaction(project, "Import Transcript", (compoundAction) => {
+      const textSegments = ppro.Transcript.importFromJSON(jsonString);
+      const importAction = ppro.Transcript.createImportTextSegmentsAction(
+        textSegments,
+        clipProjectItem
+      );
+      compoundAction.addAction(importAction);
+      success = true;
     });
 
     console.log("[DEBUG] Transcript import successful");
@@ -570,22 +591,51 @@ export async function exportFrame(
 
   if (!success) throw new Error(`Frame export failed at t=${timeSeconds}s`);
 
-  // Poll for file (async export like AME)
-  const deadline = Date.now() + 15_000;
+  // Poll for file with size stability check (same pattern as AME export).
+  // A 1920×1080 PNG is typically 500KB–3MB. We wait for the file to exist
+  // AND have a stable size across 2 consecutive polls before reading.
+  const TIMEOUT_MS = 15_000;
+  const POLL_INTERVAL = 300;
+  const STABLE_THRESHOLD = 2;
+  const MIN_PNG_SIZE = 1_000; // minimum plausible PNG size in bytes
+
+  const deadline = Date.now() + TIMEOUT_MS;
+  let lastSize = -1;
+  let stableCount = 0;
   let fileEntry: any = null;
+
   while (Date.now() < deadline) {
     try {
       fileEntry = await dataFolder.getEntry(diskFilename);
-      break;
-    } catch { /* not ready */ }
-    await new Promise(r => setTimeout(r, 300));
+      const meta = await fileEntry.getMetadata();
+      const size: number = meta.size ?? 0;
+
+      if (size > 0 && size === lastSize) {
+        stableCount++;
+        if (stableCount >= STABLE_THRESHOLD && size >= MIN_PNG_SIZE) {
+          console.log(`[PPRO] exportFrame: stable at ${size} bytes after ${stableCount} polls`);
+          break;
+        }
+      } else {
+        stableCount = 0;
+        lastSize = size;
+      }
+    } catch { /* file not ready yet */ }
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
   }
-  if (!fileEntry) throw new Error(`Frame export timeout: ${diskFilename}`);
+
+  if (!fileEntry || stableCount < STABLE_THRESHOLD) {
+    throw new Error(`Frame export timeout or unstable: ${diskFilename}`);
+  }
 
   const buffer: ArrayBuffer = await fileEntry.read({ format: uxp.storage.formats.binary });
   await fileEntry.delete();
-  console.log(`[PPRO] exportFrame: done, ${buffer.byteLength} bytes`);
 
+  if (buffer.byteLength < MIN_PNG_SIZE) {
+    throw new Error(`Frame export produced invalid file (${buffer.byteLength} bytes)`);
+  }
+
+  console.log(`[PPRO] exportFrame: done, ${buffer.byteLength} bytes`);
   return buffer;
 }
 
@@ -610,12 +660,9 @@ export async function applyLumetriToClip(
   const lumetriComponent = await ppro.VideoFilterFactory.createComponent("AE.ADBE Lumetri");
   const chain = await clip.getComponentChain();
 
-  // Add Lumetri + set all params in one transaction
-  project.lockedAccess(() => {
-    project.executeTransaction((compoundAction: any) => {
-      // Append Lumetri effect
-      compoundAction.addAction(chain.createAppendComponentAction(lumetriComponent));
-    }, "Apply Color Correction");
+  // Add Lumetri effect
+  await safeTransaction(project, "Apply Color Correction", (compoundAction: any) => {
+    compoundAction.addAction(chain.createAppendComponentAction(lumetriComponent));
   });
 
   // Get the newly added Lumetri (last component)
@@ -624,19 +671,40 @@ export async function applyLumetriToClip(
   const lumetri = updatedChain.getComponentAtIndex(compCount - 1);
 
   // Set parameters
-  project.lockedAccess(() => {
-    project.executeTransaction((compoundAction: any) => {
-      for (const [key, paramIndex] of Object.entries(LUMETRI_PARAMS)) {
-        const value = corrections[key as keyof LumetriCorrections];
-        if (value === 0 && key !== 'saturation') continue; // skip defaults
-        if (key === 'saturation' && value === 100) continue; // 100 = no change
+  await safeTransaction(project, "Set Color Correction Values", (compoundAction: any) => {
+    for (const [key, paramIndex] of Object.entries(LUMETRI_PARAMS)) {
+      const value = corrections[key as keyof LumetriCorrections];
+      if (value === 0 && key !== 'saturation') continue; // skip defaults
+      if (key === 'saturation' && value === 100) continue; // 100 = no change
 
-        const param = lumetri.getParam(paramIndex);
-        const keyframe = param.createKeyframe(value);
-        compoundAction.addAction(param.createSetValueAction(keyframe));
-      }
-    }, "Set Color Correction Values");
+      const param = lumetri.getParam(paramIndex);
+      const keyframe = param.createKeyframe(value);
+      compoundAction.addAction(param.createSetValueAction(keyframe));
+    }
   });
+}
+
+/**
+ * Check if a video clip has a Lumetri Color effect applied.
+ */
+export async function clipHasLumetri(
+  trackIndex: number,
+  clipIndex: number,
+): Promise<boolean> {
+  const sequence = await getActiveSequence();
+  const track = await sequence.getVideoTrack(trackIndex);
+  const clips = track.getTrackItems(1, false);
+  const clip = clips[clipIndex];
+  if (!clip) return false;
+
+  const chain = await clip.getComponentChain();
+  const compCount = chain.getComponentCount();
+  for (let i = 0; i < compCount; i++) {
+    const comp = chain.getComponentAtIndex(i);
+    const matchName = await comp.getMatchName();
+    if (matchName.includes('Lumetri')) return true;
+  }
+  return false;
 }
 
 /**
@@ -662,10 +730,8 @@ export async function removeLumetriFromClip(
     const comp = chain.getComponentAtIndex(i);
     const matchName = await comp.getMatchName();
     if (matchName.includes('Lumetri')) {
-      project.lockedAccess(() => {
-        project.executeTransaction((compoundAction: any) => {
-          compoundAction.addAction(chain.createRemoveComponentAction(comp));
-        }, "Remove Color Correction");
+      await safeTransaction(project, "Remove Color Correction", (compoundAction: any) => {
+        compoundAction.addAction(chain.createRemoveComponentAction(comp));
       });
       return true;
     }

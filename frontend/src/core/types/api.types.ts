@@ -129,10 +129,33 @@ export interface ColorDiagnostics {
   saturationMean: number;
   clippedHighlightsPct: number;
   crushedShadowsPct: number;
+  midtoneConcentrationPct: number;
 }
+
+export interface LogDetection {
+  isLog: boolean;
+  confidence: number;
+  estimatedProfile: string;
+  forced: boolean;
+}
+
+export type LogProfile = 'auto' | 'none' | 'slog3' | 'clog3' | 'vlog' | 'dlog' | 'logc' | 'braw' | 'generic_log';
+
+export const LOG_PROFILE_LABELS: Record<LogProfile, string> = {
+  auto: 'Auto-détection',
+  none: 'Standard (Rec.709)',
+  slog3: 'S-Log3 (Sony)',
+  clog3: 'C-Log3 (Canon)',
+  vlog: 'V-Log (Panasonic)',
+  dlog: 'D-Log (DJI)',
+  logc: 'LogC (ARRI)',
+  braw: 'Blackmagic Film',
+  generic_log: 'LOG générique',
+};
 
 export interface ColorAnalysisResponse {
   diagnostics: ColorDiagnostics;
+  logDetection: LogDetection;
   corrections: LumetriCorrections;
 }
 

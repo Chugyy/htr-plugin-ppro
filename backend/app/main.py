@@ -90,6 +90,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.middleware.request_id import RequestIdMiddleware
+app.add_middleware(RequestIdMiddleware)
+
 # --- Existing routers (audio processing) ---
 from app.api.routes import health, audio, tasks, color, plugin
 app.include_router(health.router)
@@ -99,7 +102,7 @@ app.include_router(plugin.router)
 app.include_router(tasks.router)
 
 # --- New SaaS routers ---
-from app.api.routes import user, api_key, usage, plans, team
+from app.api.routes import user, api_key, usage, plans, team, bug_report
 from app.api.routes.subscription import billing_router, webhook_router
 
 app.include_router(user.router)
@@ -109,6 +112,7 @@ app.include_router(webhook_router)
 app.include_router(usage.router)
 app.include_router(plans.router)
 app.include_router(team.router)
+app.include_router(bug_report.router)
 
 
 @app.get("/")

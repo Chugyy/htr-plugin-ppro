@@ -3,9 +3,11 @@
  */
 
 import type { VideoTrackInfo } from '@/core/types';
-import { loadVideoTracks, runColorCorrection, resetColorCorrection } from '@/core/jobs/colorCorrection';
+import type { LogProfile } from '@/core/types';
+import { loadVideoTracks, runColorCorrection, resetColorCorrection, detectExistingLumetri } from '@/core/jobs/colorCorrection';
 import type { CorrectedClip } from '@/core/jobs/colorCorrection';
 import { setStatus, setErrorStatus } from '@/ui/utils/status';
+import { acquireLock, releaseLock } from '@/core/utils/operationLock';
 
 // ── State ──────────────────────────────────────────────
 
@@ -14,6 +16,11 @@ let selectedIndices: Set<number> = new Set();
 let correctedClips: CorrectedClip[] = [];
 
 // ── Helpers ────────────────────────────────────────────
+
+function getSelectedLogProfile(): LogProfile {
+  const select = document.getElementById('log-profile-select') as HTMLSelectElement | null;
+  return (select?.value as LogProfile) || 'auto';
+}
 
 function updateButtons(): void {
   const btnCorrect = document.getElementById('btn-correct');
@@ -59,9 +66,10 @@ function renderTracks(): void {
 // ── Load sequence ──────────────────────────────────────
 
 async function handleLoad(): Promise<void> {
-  setStatus('color-status', 'loading', 'Chargement...');
+  if (!acquireLock('color')) { setStatus('color-status', 'notice', 'Opération en cours...'); return; }
 
   try {
+    setStatus('color-status', 'loading', 'Chargement...');
     tracks = await loadVideoTracks();
 
     if (tracks.length === 0) {
@@ -70,16 +78,22 @@ async function handleLoad(): Promise<void> {
     }
 
     selectedIndices.clear();
-    correctedClips = [];
     renderTracks();
-    updateButtons();
     document.getElementById('color-loaded')?.removeAttribute('hidden');
 
+    // Detect clips that already have Lumetri (from a previous correction)
+    const existing = await detectExistingLumetri(tracks);
+    correctedClips = existing;
+    updateButtons();
+
     const totalClips = tracks.reduce((n, t) => n + t.clipCount, 0);
-    setStatus('color-status', 'success', `${tracks.length} piste(s), ${totalClips} clip(s)`);
+    const lumetriInfo = existing.length > 0 ? ` — ${existing.length} déjà corrigé(s)` : '';
+    setStatus('color-status', 'success', `${tracks.length} piste(s), ${totalClips} clip(s)${lumetriInfo}`);
   } catch (err: any) {
     console.error('[COLOR] Load failed:', err);
     setErrorStatus('color-status', err.message);
+  } finally {
+    releaseLock();
   }
 }
 
@@ -90,11 +104,13 @@ async function handleCorrect(): Promise<void> {
     setErrorStatus('color-status', 'Sélectionnez au moins une piste');
     return;
   }
+  if (!acquireLock('color')) { setStatus('color-status', 'notice', 'Opération en cours...'); return; }
 
   try {
     const result = await runColorCorrection(
       [...selectedIndices],
       tracks,
+      getSelectedLogProfile(),
       (progress) => {
         const pct = progress.current && progress.total
           ? ` (${progress.current}/${progress.total})`
@@ -109,6 +125,8 @@ async function handleCorrect(): Promise<void> {
   } catch (err: any) {
     console.error('[COLOR] Correction failed:', err);
     setErrorStatus('color-status', err.message);
+  } finally {
+    releaseLock();
   }
 }
 
@@ -116,6 +134,7 @@ async function handleCorrect(): Promise<void> {
 
 async function handleReset(): Promise<void> {
   if (correctedClips.length === 0) return;
+  if (!acquireLock('color')) { setStatus('color-status', 'notice', 'Opération en cours...'); return; }
 
   try {
     await resetColorCorrection(
@@ -134,6 +153,8 @@ async function handleReset(): Promise<void> {
   } catch (err: any) {
     console.error('[COLOR] Reset failed:', err);
     setErrorStatus('color-status', err.message);
+  } finally {
+    releaseLock();
   }
 }
 

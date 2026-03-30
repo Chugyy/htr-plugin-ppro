@@ -20,29 +20,40 @@ router = APIRouter(prefix="/color", tags=["color"])
 @router.post("/analyze", response_model=ColorAnalysisResponse)
 async def analyze_color(
     file: UploadFile = File(..., description="PNG/JPG frame to analyze"),
+    log_profile: str = "auto",
     auth=Depends(verify_api_key("color_corrections")),
     _rl=Depends(check_rate_limit),
 ):
-    """Analyze a video frame and return Lumetri correction parameters."""
+    """Analyze a video frame and return Lumetri correction parameters.
+
+    Args:
+        log_profile: "auto" (detect LOG automatically), "none" (standard Rec.709),
+                     or a specific profile: slog3, clog3, vlog, dlog, logc, braw, generic_log.
+    """
     ext = Path(file.filename or "frame.png").suffix or ".png"
     frame_path = settings.temp_dir / f"color_{uuid.uuid4().hex}{ext}"
 
     try:
-        # Save uploaded frame
         content = await file.read()
-        frame_path.write_bytes(content)
         size_kb = len(content) / 1024
-        logger.info(f"[COLOR] Received frame ({size_kb:.1f} KB)")
+        logger.info(f"[COLOR] Received frame ({size_kb:.1f} KB), log_profile={log_profile}")
 
-        # Analyze
-        result = analyze_frame(frame_path)
-        logger.info(f"[COLOR] Analysis complete: exposure={result['corrections']['exposure']}, temp={result['corrections']['temperature']}")
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Empty frame file received")
 
-        # Track usage
+        frame_path.write_bytes(content)
+        result = analyze_frame(frame_path, log_profile=log_profile)
+
+        log_info = result["log_detection"]
+        logger.info(
+            f"[COLOR] Analysis complete: log={log_info['is_log']} "
+            f"(confidence={log_info['confidence']}, profile={log_info['estimated_profile']}), "
+            f"exposure={result['corrections']['exposure']}, temp={result['corrections']['temperature']}"
+        )
+
         await track_usage(auth.user_id, auth.api_key_id, "color_corrections")
 
         return result
     finally:
-        # Cleanup: always remove the uploaded frame
         if frame_path.exists():
             frame_path.unlink()

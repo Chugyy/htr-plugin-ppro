@@ -20,5 +20,5 @@ ENV DEBUG=false
 EXPOSE 5001
 
 # Build: docker build -t htr-backend:latest .
-# Run:   docker run -d --restart unless-stopped -p 5001:5001 --env-file config/.env htr-backend:latest
+# Run:   docker run -d --restart unless-stopped -p 5001:5001 --env-file config/.env -v htr-logs:/app/logs htr-backend:latest
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5001"]

@@ -3,6 +3,7 @@ import type { TrackSpeakerAssignment } from '../../core/jobs/transcriptionGenera
 import type { TranscriptionResponse } from '@/core/types';
 import { createInput, createSelect } from '@/ui/components';
 import { setStatus, setErrorStatus } from '@/ui/utils/status';
+import { acquireLock, releaseLock } from '@/core/utils/operationLock';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -239,9 +240,9 @@ export function mountGenerationHooks(): void {
   // Load sequence
   btnLoad?.addEventListener('click', async () => {
     if (btnLoad.classList.contains('btn--disabled')) return;
+    if (!acquireLock('generation')) { setStatus('generation-status', 'notice', 'Opération en cours...'); return; }
     clearLog('generation-logs');
     setStatus('generation-status', 'notice', 'Chargement...');
-    btnLoad.classList.add('btn--disabled');
     try {
       const { sequenceName, tracks } = await loadActiveSequence();
       const seqName = document.getElementById('generation-sequence-name');
@@ -253,7 +254,7 @@ export function mountGenerationHooks(): void {
       setStatus('generation-status', 'negative', err.message);
       appendLog('generation-logs', '✗ ' + err.message);
     } finally {
-      btnLoad.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 
@@ -263,8 +264,8 @@ export function mountGenerationHooks(): void {
     const assignments = getAssignments();
     if (assignments.length === 0) return;
 
+    if (!acquireLock('generation')) { setStatus('generation-status', 'notice', 'Opération en cours...'); return; }
     setStatus('generation-status', 'notice', 'Génération en cours...');
-    btnGenerate.classList.add('btn--disabled');
     appendLog('generation-logs', `→ Transcription de ${assignments.length} piste(s)...`);
 
     for (const a of assignments) {
@@ -279,7 +280,7 @@ export function mountGenerationHooks(): void {
       setStatus('generation-status', 'negative', 'Erreur');
       appendLog('generation-logs', '✗ ' + err.message);
     } finally {
-      btnGenerate.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 }

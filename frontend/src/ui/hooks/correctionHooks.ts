@@ -1,6 +1,7 @@
 import { loadExistingTranscript, correctTranscription } from '../../core/jobs/transcriptionCorrection';
 import type { CorrectionResponse } from '@/core/types';
 import { setStatus, setErrorStatus } from '@/ui/utils/status';
+import { acquireLock, releaseLock } from '@/core/utils/operationLock';
 
 let currentTranscriptText: string = '';
 
@@ -10,8 +11,8 @@ export function mountCorrectionHooks(): void {
 
   btnLoad?.addEventListener('click', async () => {
     if (btnLoad.classList.contains('btn--disabled')) return;
+    if (!acquireLock('correction')) { setStatus('correction-status', 'notice', 'Opération en cours...'); return; }
     setStatus('correction-status', 'notice', 'Chargement...');
-    btnLoad.classList.add('btn--disabled');
 
     try {
       currentTranscriptText = await loadExistingTranscript();
@@ -21,15 +22,15 @@ export function mountCorrectionHooks(): void {
     } catch (err: any) {
       setStatus('correction-status', 'negative', err.message);
     } finally {
-      btnLoad.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 
   btnCorrect?.addEventListener('click', async () => {
     if (btnCorrect.classList.contains('btn--disabled')) return;
+    if (!acquireLock('correction')) { setStatus('correction-status', 'notice', 'Opération en cours...'); return; }
 
     setStatus('correction-status', 'notice', 'Correction en cours');
-    btnCorrect.classList.add('btn--disabled');
 
     try {
       const response: CorrectionResponse = await correctTranscription(currentTranscriptText);
@@ -43,7 +44,7 @@ export function mountCorrectionHooks(): void {
     } catch (err: any) {
       setStatus('correction-status', 'negative', 'Erreur : ' + err.message);
     } finally {
-      btnCorrect.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 }

@@ -11,3 +11,11 @@
   line-height: 1.4;
   margin: var(--space-xs) 0;
 }
+
+.info-box--warning {
+  background: var(--warning-bg);
+  border-color: rgba(255, 180, 0, 0.15);
+  border-left-color: var(--notice);
+  color: var(--warning-text);
+  margin-top: var(--space-md);
+}

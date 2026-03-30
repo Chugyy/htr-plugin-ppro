@@ -6,39 +6,45 @@
 const ppro = window.require("premierepro") as any;
 const uxp = window.require("uxp") as any;
 
-const PRESET_FILENAME = "htr-whisper.epr";
-let _presetNativePath: string | null = null;
+export type PresetType = "whisper" | "optimize";
+
+const PRESET_FILES: Record<PresetType, string> = {
+  whisper: "htr-whisper.epr",    // 16kHz mono 16-bit (transcription)
+  optimize: "htr-optimize.epr",  // 48kHz stereo 24-bit (audio optimization)
+};
+
+const _presetCache: Partial<Record<PresetType, string>> = {};
 
 // ========================================
 // PRESET INIT
 // ========================================
 
 /**
- * Get native path to the WAV 16kHz mono preset.
+ * Get native path to a preset file.
  * Copies the bundled preset to the plugin data folder on first call.
  */
-async function getPresetPath(): Promise<string> {
-  if (_presetNativePath) return _presetNativePath;
+async function getPresetPath(type: PresetType = "whisper"): Promise<string> {
+  if (_presetCache[type]) return _presetCache[type]!;
 
+  const filename = PRESET_FILES[type];
   const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
 
   try {
-    const existing = await dataFolder.getEntry(PRESET_FILENAME);
-    _presetNativePath = existing.nativePath;
+    const existing = await dataFolder.getEntry(filename);
+    _presetCache[type] = existing.nativePath;
   } catch {
-    // Copy bundled preset from plugin assets to data folder
-    const pluginPresetUrl = new URL(`../../../assets/${PRESET_FILENAME}`, import.meta.url).href;
+    const pluginPresetUrl = new URL(`../../../assets/${filename}`, import.meta.url).href;
     const res = await fetch(pluginPresetUrl);
-    if (!res.ok) throw new Error(`Could not load bundled preset: ${PRESET_FILENAME}`);
+    if (!res.ok) throw new Error(`Could not load bundled preset: ${filename}`);
     const text = await res.text();
 
-    const entry = await dataFolder.createFile(PRESET_FILENAME, { overwrite: true });
+    const entry = await dataFolder.createFile(filename, { overwrite: true });
     await entry.write(text, { format: uxp.storage.formats.utf8 });
-    _presetNativePath = entry.nativePath;
+    _presetCache[type] = entry.nativePath;
   }
 
-  console.log(`[AME] Preset path: ${_presetNativePath}`);
-  return _presetNativePath!;
+  console.log(`[AME] Preset path (${type}): ${_presetCache[type]}`);
+  return _presetCache[type]!;
 }
 
 // ========================================
@@ -53,14 +59,22 @@ async function getPresetPath(): Promise<string> {
  * @param inPoint        - Start time in seconds
  * @param outPoint       - End time in seconds
  * @param clipName       - Used to name the output file
+ * @param preset         - "whisper" (16kHz mono) or "optimize" (48kHz stereo 24-bit)
  */
 let _exportCounter = 0;
+
+// Bytes per second by preset (for file-size validation)
+const _BYTES_PER_SEC: Record<PresetType, number> = {
+  whisper: 32_000,   // 16kHz × 1ch × 2 bytes (16-bit)
+  optimize: 288_000, // 48kHz × 2ch × 3 bytes (24-bit)
+};
 
 export async function exportAudioSegment(
   sourceFilePath: string,
   inPoint: number,
   outPoint: number,
-  clipName: string
+  clipName: string,
+  preset: PresetType = "whisper",
 ): Promise<string> {
   const manager = ppro.EncoderManager.getManager();
 
@@ -68,7 +82,7 @@ export async function exportAudioSegment(
     throw new Error("Adobe Media Encoder n'est pas installé");
   }
 
-  const presetPath = await getPresetPath();
+  const presetPath = await getPresetPath(preset);
   const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
   const safeName = clipName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
   const outputName = `${safeName}_${Date.now()}_${++_exportCounter}.wav`;
@@ -96,9 +110,7 @@ export async function exportAudioSegment(
   const TIMEOUT_MS = Math.max(60_000, clipDuration * 2_000);
   const deadline   = Date.now() + TIMEOUT_MS;
 
-  // Expected minimum file size for WAV 16kHz mono 16-bit:
-  // clipDuration × 16000 samples/s × 2 bytes/sample = clipDuration × 32000
-  const expectedMinSize = clipDuration * 32_000 * 0.8; // 80% margin for codec variations
+  const expectedMinSize = clipDuration * _BYTES_PER_SEC[preset] * 0.8;
 
   // Poll interval: 1s for short clips, 3s for long clips (reduces false positives)
   const POLL_INTERVAL = clipDuration > 120 ? 3_000 : 1_000;

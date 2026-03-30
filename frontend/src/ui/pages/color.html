@@ -31,12 +31,33 @@
     <div id="color-track-group" class="track__list"></div>
   </div>
 
+  <!-- ── Étape 2b : Profil LOG ─────────────────────────────── -->
+  <div class="step">
+    <div class="step__text">
+      <div class="step__title">Profil colorimétrique</div>
+      <p class="step__desc">Si vos clips sont tournés en LOG, sélectionnez le profil caméra ou laissez l'auto-détection.</p>
+    </div>
+    <div style="margin-top:6px;">
+      <select id="log-profile-select" style="width:100%;padding:6px 8px;border-radius:4px;border:1px solid var(--border-color, #444);background:var(--bg-secondary, #2a2a2a);color:var(--text-primary, #e0e0e0);font-size:12px;">
+        <option value="auto" selected>Auto-détection</option>
+        <option value="none">Standard (Rec.709)</option>
+        <option value="slog3">S-Log3 (Sony)</option>
+        <option value="clog3">C-Log3 (Canon)</option>
+        <option value="vlog">V-Log (Panasonic)</option>
+        <option value="dlog">D-Log (DJI)</option>
+        <option value="logc">LogC (ARRI)</option>
+        <option value="braw">Blackmagic Film</option>
+        <option value="generic_log">LOG générique</option>
+      </select>
+    </div>
+  </div>
+
   <!-- ── Étape 3 : Lancer ──────────────────────────────────── -->
   <div class="step">
     <div class="step__row">
       <div class="step__text">
         <div class="step__title">Lancer la correction</div>
-        <p class="step__desc">Exporte une frame par média, analyse les couleurs et applique un Lumetri Color à chaque clip.</p>
+        <p class="step__desc">Exporte une frame par média, analyse les couleurs et applique un Lumetri Color à chaque clip. Utilisez « Réinitialiser » pour revenir au média d'origine avant de réessayer.</p>
       </div>
       <div style="display:flex;gap:8px;">
         <div id="btn-correct" class="btn btn--primary" role="button" tabindex="0">Corriger</div>

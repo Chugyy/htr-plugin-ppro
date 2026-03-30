@@ -1,6 +1,8 @@
 import { loadAudioTracks, optimizeAudio } from '../../core/jobs/audioEnhancement';
 import type { OptimizationResponse } from '@/core/types';
 import { createInput, createSelect } from '@/ui/components';
+import { captureErrorReport } from '@/core/utils/bugReport';
+import { acquireLock, releaseLock } from '@/core/utils/operationLock';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -125,8 +127,8 @@ export function mountAudioHooks(): void {
 
   btnLoad?.addEventListener('click', async () => {
     if (btnLoad.classList.contains('btn--disabled')) return;
+    if (!acquireLock('audio')) { setStatus('audio-status', 'notice', 'Opération en cours...'); return; }
     setStatus('audio-status', 'notice', 'Chargement...');
-    btnLoad.classList.add('btn--disabled');
     try {
       const { tracks, projectDir } = await loadAudioTracks();
       renderAudioTrackCheckboxes(tracks);
@@ -136,15 +138,16 @@ export function mountAudioHooks(): void {
       setStatus('audio-status', 'neutral', 'Prêt');
     } catch (err: any) {
       setStatus('audio-status', 'negative', err.message);
+      captureErrorReport('audio', err);
     } finally {
-      btnLoad.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 
   btnOptimize?.addEventListener('click', async () => {
     if (btnOptimize.classList.contains('btn--disabled')) return;
+    if (!acquireLock('audio')) { setStatus('audio-status', 'notice', 'Opération en cours...'); return; }
     setStatus('audio-status', 'notice', 'Optimisation en cours...');
-    btnOptimize.classList.add('btn--disabled');
     const selectedTracks = selectedTrackIndices.map(index => ({
       index,
       filterType: (document.getElementById(`audio-type-${index}`) as HTMLSelectElement)?.value as 'voice' | 'music' | 'sound_effects' ?? 'voice',
@@ -162,8 +165,9 @@ export function mountAudioHooks(): void {
     } catch (err: any) {
       setStatus('audio-status', 'negative', 'Erreur');
       appendLog('audio-logs', '✗ ' + err.message);
+      captureErrorReport('audio', err);
     } finally {
-      btnOptimize.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 }

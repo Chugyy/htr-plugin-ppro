@@ -1,4 +1,5 @@
 import { BackendError, openInBrowser } from '@/core/api/backendAPI';
+import { captureErrorReport } from '@/core/utils/bugReport';
 
 let blinkTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -41,6 +42,12 @@ export function setStatus(
 
   if (label) label.textContent = text;
 
+  // Auto-send bug report on error
+  if (variant === 'negative' && error) {
+    const feature = id.replace(/-status$/, '') || 'unknown';
+    captureErrorReport(feature, error);
+  }
+
   // Add action button if error has an actionUrl
   if (error instanceof BackendError && error.actionUrl && error.actionLabel) {
     const btn = document.createElement('button');
@@ -54,6 +61,7 @@ export function setStatus(
 
 /**
  * Convenience: extract message from any error and call setStatus with action support.
+ * Bug report is auto-sent by setStatus when variant is 'negative'.
  */
 export function setErrorStatus(id: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);

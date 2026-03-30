@@ -1,6 +1,8 @@
-import { detectSilences, removeSilencesFromTrack } from '../../core/jobs/silenceRemoval';
-import { getActiveSequence } from '../../core/api/premiereProAPI';
+import { detectSilences, removeSilencesFromTrack, type DerushOptions } from '../../core/jobs/silenceRemoval';
+import { getActiveSequence, getActiveSequenceClipItem, exportTranscript } from '../../core/api/premiereProAPI';
 import { createSelect } from '@/ui/components';
+import { captureErrorReport } from '@/core/utils/bugReport';
+import { acquireLock, releaseLock } from '@/core/utils/operationLock';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,14 +34,54 @@ function setStatus(variant: 'neutral' | 'positive' | 'negative' | 'notice', text
 
 // ── Mount ────────────────────────────────────────────────────────────────────
 
+function readDerushOptions(): DerushOptions {
+  const threshold = document.getElementById('derusher-threshold') as HTMLInputElement | null;
+  const minDur = document.getElementById('derusher-min-duration') as HTMLInputElement | null;
+  const padding = document.getElementById('derusher-padding') as HTMLInputElement | null;
+  return {
+    noiseThreshold: threshold ? parseFloat(threshold.value) : -30,
+    minDuration: minDur ? parseFloat(minDur.value) : 0.5,
+    padding: padding ? parseFloat(padding.value) : 0.2,
+  };
+}
+
+function mountSliderLabels(): void {
+  const pairs: Array<[string, string, (v: number) => string]> = [
+    ['derusher-threshold', 'derusher-threshold-val', v => `${v} dB`],
+    ['derusher-min-duration', 'derusher-min-duration-val', v => `${v.toFixed(1)}s`],
+    ['derusher-padding', 'derusher-padding-val', v => `${v.toFixed(2)}s`],
+  ];
+  for (const [inputId, labelId, fmt] of pairs) {
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    const label = document.getElementById(labelId);
+    input?.addEventListener('input', () => {
+      if (label) label.textContent = fmt(parseFloat(input.value));
+    });
+  }
+}
+
+async function checkTranscriptWarning(): Promise<void> {
+  const warning = document.getElementById('derusher-transcript-warning');
+  if (!warning) return;
+  try {
+    const clipItem = await getActiveSequenceClipItem();
+    const transcript = await exportTranscript(clipItem);
+    warning.hidden = !transcript;
+  } catch {
+    warning.hidden = true;
+  }
+}
+
 export function mountDerusherHooks(): void {
   const btnLoad = document.getElementById('btn-load-derusher');
   const btnRemove = document.getElementById('btn-remove-silences');
 
+  mountSliderLabels();
+
   // ── Load sequence ──
   btnLoad?.addEventListener('click', async () => {
     if (btnLoad.classList.contains('btn--disabled')) return;
-    btnLoad.classList.add('btn--disabled');
+    if (!acquireLock('derusher')) { setStatus('notice', 'Opération en cours...'); return; }
     setStatus('notice', 'Chargement...');
 
     try {
@@ -57,11 +99,13 @@ export function mountDerusherHooks(): void {
         btnRemove?.classList.add('btn--disabled');
       }
 
+      await checkTranscriptWarning();
       setStatus('neutral', 'Prêt');
     } catch (err: any) {
       setStatus('negative', err.message);
+      captureErrorReport('derusher', err);
     } finally {
-      btnLoad.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 
@@ -72,14 +116,18 @@ export function mountDerusherHooks(): void {
     const select = document.getElementById('derusher-track-select') as HTMLSelectElement | null;
     if (!select || !select.value) return;
 
+    if (!acquireLock('derusher')) { setStatus('notice', 'Opération en cours...'); return; }
+
     const trackIndex = parseInt(select.value, 10);
-    btnRemove.classList.add('btn--disabled');
 
     try {
+      const options = readDerushOptions();
+
       setStatus('notice', 'Détection des silences...');
       const result = await detectSilences(
         trackIndex,
         (msg) => setStatus('notice', msg),
+        options,
       );
 
       if (result.silences.length === 0) {
@@ -92,6 +140,7 @@ export function mountDerusherHooks(): void {
         trackIndex,
         result.silences,
         (_step, _total, msg) => setStatus('notice', msg),
+        options,
       );
 
       setStatus('positive',
@@ -99,8 +148,9 @@ export function mountDerusherHooks(): void {
       );
     } catch (err: any) {
       setStatus('negative', err.message);
+      captureErrorReport('derusher', err);
     } finally {
-      btnRemove.classList.remove('btn--disabled');
+      releaseLock();
     }
   });
 }

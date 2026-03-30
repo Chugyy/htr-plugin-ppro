@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     student_emails: str = Field("", env="STUDENT_EMAILS")  # comma-separated emails
     student_coupon_id: str = Field("STUDENT_6M_FREE", env="STUDENT_COUPON_ID")
 
+    # Telegram notifications
+    telegram_bot_token: str = Field("", env="TELEGRAM_BOT_TOKEN")
+    telegram_chat_id: int = Field(0, env="TELEGRAM_CHAT_ID")
+
     # LLM Services
     anthropic_api_key: str = Field("", env="ANTHROPIC_API_KEY")
     openai_api_key: str = Field("", env="OPENAI_API_KEY")

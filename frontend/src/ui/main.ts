@@ -1,3 +1,4 @@
+import '@/core/utils/logBuffer'; // MUST be first — intercepts console before any other import logs
 import './styles/main.css';
 import { validateApiKey } from '@/core/api/authAPI';
 import { authService } from '@/core/services/authService';
@@ -10,9 +11,9 @@ import { mountColorHooks } from './hooks/colorHooks';
 
 async function loadPages(): Promise<void> {
   const pages: Array<{ id: string; path: string }> = [
+    { id: 'tab-derusher',   path: './pages/derusher.html' },
     { id: 'tab-generation', path: './pages/generation.html' },
     { id: 'tab-correction', path: './pages/correction.html' },
-    { id: 'tab-derusher',   path: './pages/derusher.html' },
     { id: 'tab-color',      path: './pages/color.html' },
     { id: 'tab-audio',      path: './pages/audio.html' },
   ];
@@ -48,10 +49,45 @@ async function showAuthPage(): Promise<void> {
   mountAuthHooks(() => window.location.reload());
 }
 
+const AME_TABS = ['derusher', 'generation', 'audio'];
+
+function checkAMEInstalled(): boolean {
+  try {
+    const ppro = window.require("premierepro") as any;
+    const manager = ppro.EncoderManager.getManager();
+    return !!manager.isAMEInstalled;
+  } catch {
+    return false;
+  }
+}
+
+function disableAMETabs(): void {
+  const banner = document.getElementById('ame-missing-banner');
+  if (banner) banner.hidden = false;
+
+  for (const tabName of AME_TABS) {
+    const btn = document.querySelector<HTMLElement>(`.tab__btn[data-tab="${tabName}"]`);
+    if (btn) {
+      btn.classList.add('btn--disabled');
+      btn.style.opacity = '0.35';
+      btn.style.pointerEvents = 'none';
+    }
+  }
+
+  // If active tab requires AME, switch to first available tab
+  const firstAvailable = document.querySelector<HTMLElement>('.tab__btn:not(.btn--disabled)');
+  if (firstAvailable) firstAvailable.click();
+}
+
 async function initApp(): Promise<void> {
   await loadPages();
   document.querySelector<HTMLElement>('.tabs-container')!.removeAttribute('hidden');
   initTabNavigation();
+
+  if (!checkAMEInstalled()) {
+    disableAMETabs();
+  }
+
   mountGenerationHooks();
   mountCorrectionHooks();
   mountDerusherHooks();

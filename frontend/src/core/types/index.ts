@@ -21,8 +21,12 @@ export type {
   VideoTrackInfo,
   LumetriCorrections,
   ColorDiagnostics,
+  LogDetection,
   ColorAnalysisResponse
 } from './api.types';
+
+export type { LogProfile } from './api.types';
+export { LOG_PROFILE_LABELS } from './api.types';
 
 // Premiere Pro Types
 export type {

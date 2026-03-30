@@ -9,6 +9,7 @@
  */
 
 import * as premiereProAPI from '../api/premiereProAPI';
+import { safeTransaction } from '../api/premiereProAPI';
 import { backendClient } from '../api/backendAPI';
 import { exportAudioSegment, deleteLocalFile } from '../api/ameAPI';
 import type { OptimizationResponse } from '@/core/types';
@@ -89,7 +90,7 @@ export async function optimizeAudio(
 
     // 1. Export full source audio once
     onProgress?.("Export audio...");
-    const localPath = await exportAudioSegment(sourceFile, 0, maxOut, `optimize_t${selected.index}`);
+    const localPath = await exportAudioSegment(sourceFile, 0, maxOut, `optimize_t${selected.index}`, "optimize");
     const serverPath = await backendClient.uploadAudio(localPath);
     await deleteLocalFile(localPath);
     console.log("[JOB] Full source uploaded");
@@ -160,24 +161,20 @@ export async function optimizeAudio(
       onProgress?.(`Insertion clip ${ci + 1}/${clips.length}...`);
 
       // Transaction 1: set in/out on ProjectItem
-      project.lockedAccess(() => {
-        project.executeTransaction((ca: any) => {
-          ca.addAction(optimizedCast.createSetInOutPointsAction(
-            ppro.TickTime.createWithSeconds(clip.sourceInPoint),
-            ppro.TickTime.createWithSeconds(clip.sourceOutPoint),
-          ));
-        }, "Set in/out");
+      await safeTransaction(project, "Set in/out", (ca: any) => {
+        ca.addAction(optimizedCast.createSetInOutPointsAction(
+          ppro.TickTime.createWithSeconds(clip.sourceInPoint),
+          ppro.TickTime.createWithSeconds(clip.sourceOutPoint),
+        ));
       });
 
       // Transaction 2: overwrite at position (uses the committed in/out)
-      project.lockedAccess(() => {
-        project.executeTransaction((ca: any) => {
-          ca.addAction(editor.createOverwriteItemAction(
-            optimizedPI,
-            ppro.TickTime.createWithSeconds(clip.timelineStart),
-            -1, targetTrack,
-          ));
-        }, "Place clip");
+      await safeTransaction(project, "Place clip", (ca: any) => {
+        ca.addAction(editor.createOverwriteItemAction(
+          optimizedPI,
+          ppro.TickTime.createWithSeconds(clip.timelineStart),
+          -1, targetTrack,
+        ));
       });
 
       // Queue: pause between each clip to let PPro process

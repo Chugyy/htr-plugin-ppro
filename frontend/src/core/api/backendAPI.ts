@@ -24,6 +24,25 @@ const BACKEND_CONFIG = {
 
 const DASHBOARD_URL = (import.meta.env.VITE_DASHBOARD_URL as string) || 'https://plugin.hittherecord.com';
 
+// ========================================
+// REQUEST ID TRACKING
+// ========================================
+
+const MAX_RECENT_IDS = 20;
+const recentRequestIds: string[] = [];
+
+function trackRequestId(): string {
+  const id = crypto.randomUUID();
+  recentRequestIds.push(id);
+  if (recentRequestIds.length > MAX_RECENT_IDS) recentRequestIds.shift();
+  return id;
+}
+
+/** Returns the last N request IDs for bug report correlation. */
+export function getRecentRequestIds(): string[] {
+  return [...recentRequestIds];
+}
+
 /** Open a URL in the user's default browser (UXP shell) */
 export function openInBrowser(url: string): void {
   try {
@@ -78,13 +97,15 @@ export class BackendClient {
     const apiKey = authService.get();
     if (!apiKey) throw new Error("Not authenticated");
 
-    console.log(`[BackendClient] ${method} ${url}`);
+    const requestId = trackRequestId();
+    console.log(`[BackendClient] ${method} ${url} [rid:${requestId}]`);
 
     return new Promise<T>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(method, url);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.setRequestHeader('X-API-Key', apiKey);
+      xhr.setRequestHeader('X-Request-Id', requestId);
       xhr.timeout = timeout;
 
       xhr.onload = () => {
@@ -170,14 +191,15 @@ export class BackendClient {
     formData.append("file", new Blob([buffer], { type: "audio/wav" }), filename);
 
     const url = `${this.baseURL}/audio/upload`;
-    console.log(`[BackendClient] POST ${url} (${filename})`);
+    const requestId = trackRequestId();
+    console.log(`[BackendClient] POST ${url} (${filename}) [rid:${requestId}]`);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120_000); // 2 min
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { 'X-API-Key': apiKey },
+      headers: { 'X-API-Key': apiKey, 'X-Request-Id': requestId },
       body: formData,
       signal: controller.signal,
     }).finally(() => clearTimeout(timer));
@@ -232,9 +254,10 @@ export class BackendClient {
 
     const filename = serverPath.split("/").pop()!;
     const url = `${this.baseURL}/audio/download?path=${encodeURIComponent(serverPath)}`;
-    console.log(`[BackendClient] GET ${url}`);
+    const requestId = trackRequestId();
+    console.log(`[BackendClient] GET ${url} [rid:${requestId}]`);
 
-    const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
+    const res = await fetch(url, { headers: { 'X-API-Key': apiKey, 'X-Request-Id': requestId } });
     if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
     const buffer = await res.arrayBuffer();
@@ -320,22 +343,23 @@ export class BackendClient {
    * Upload a frame image for color analysis.
    * Returns the server-side path.
    */
-  async uploadFrame(buffer: ArrayBuffer, filename: string): Promise<string> {
+  async uploadFrame(buffer: ArrayBuffer, filename: string, logProfile: string = 'auto'): Promise<string> {
     const apiKey = authService.get();
     if (!apiKey) throw new Error("Not authenticated");
 
     const formData = new FormData();
     formData.append("file", new Blob([buffer], { type: "image/png" }), filename);
 
-    const url = `${this.baseURL}/color/analyze`;
-    console.log(`[BackendClient] POST ${url} (${filename})`);
+    const url = `${this.baseURL}/color/analyze?log_profile=${encodeURIComponent(logProfile)}`;
+    const requestId = trackRequestId();
+    console.log(`[BackendClient] POST ${url} (${filename}) [rid:${requestId}]`);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30_000);
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { 'X-API-Key': apiKey },
+      headers: { 'X-API-Key': apiKey, 'X-Request-Id': requestId },
       body: formData,
       signal: controller.signal,
     }).finally(() => clearTimeout(timer));
@@ -371,8 +395,8 @@ export class BackendClient {
    * Analyze a frame for color correction.
    * Uploads the frame and returns Lumetri corrections in one call.
    */
-  async analyzeFrame(buffer: ArrayBuffer, filename: string): Promise<ColorAnalysisResponse> {
-    return this.uploadFrame(buffer, filename) as unknown as ColorAnalysisResponse;
+  async analyzeFrame(buffer: ArrayBuffer, filename: string, logProfile: string = 'auto'): Promise<ColorAnalysisResponse> {
+    return this.uploadFrame(buffer, filename, logProfile) as unknown as ColorAnalysisResponse;
   }
 
   /**

@@ -21,7 +21,6 @@ from typing import Dict, List, Any, Optional
 from app.api.models.audio import TrackOptimizationDTO
 from app.core.services.audio import get_audio_duration
 from app.core.services.audio.optimization import (
-    apply_optimization,
     apply_optimization_chunk,
     concat_chunks,
     measure_loudness,
@@ -103,18 +102,18 @@ async def optimize_tracks(tracks: List[TrackOptimizationDTO]) -> Dict[str, Any]:
                     timeline_end=clip.timeline_end,
                 ))
 
-        # ── 2. Identify large clips → measure loudness + split ───────────
+        # ── 2. Measure loudness (all clips) + split large ones ───────────
         chunk_map: Dict[int, List[ChunkJob]] = {}  # clip_job id → ordered chunks
         all_chunks: List[ChunkJob] = []
         threshold = settings.chunk_duration_seconds
 
         for idx, cj in enumerate(clip_jobs):
-            if cj.duration > threshold:
-                # Pass 1: measure loudness (fast, no encode)
-                logger.info(f"[OPT] Measuring loudness: {cj.clip_name} ({cj.duration:.1f}s)")
-                measured = await loop.run_in_executor(None, measure_loudness, cj.audio_path)
+            # Always two-pass: measure first, apply with linear=true
+            logger.info(f"[OPT] Measuring loudness: {cj.clip_name} ({cj.duration:.1f}s)")
+            measured = await loop.run_in_executor(None, measure_loudness, cj.audio_path)
 
-                # Split
+            if cj.duration > threshold:
+                # Split large clips into chunks
                 chunks = await loop.run_in_executor(None, split_audio, cj.audio_path, threshold)
                 chunk_jobs = [
                     ChunkJob(clip_job=cj, chunk_path=cp, chunk_index=i, measured_params=measured)
@@ -124,8 +123,8 @@ async def optimize_tracks(tracks: List[TrackOptimizationDTO]) -> Dict[str, Any]:
                 all_chunks.extend(chunk_jobs)
                 created_files.extend(chunks)
             else:
-                # Small clip → single work-unit, no measured_params needed (single-pass loudnorm)
-                cj_chunk = ChunkJob(clip_job=cj, chunk_path=cj.audio_path, chunk_index=0)
+                # Small clip → single work-unit with measured params (two-pass)
+                cj_chunk = ChunkJob(clip_job=cj, chunk_path=cj.audio_path, chunk_index=0, measured_params=measured)
                 chunk_map[idx] = [cj_chunk]
                 all_chunks.append(cj_chunk)
 
@@ -134,18 +133,10 @@ async def optimize_tracks(tracks: List[TrackOptimizationDTO]) -> Dict[str, Any]:
         # ── 3. Process all work-units in parallel (bounded by ffmpeg queue) ─
         async def _process_chunk(wu: ChunkJob) -> None:
             async def _run():
-                if wu.measured_params:
-                    wu.optimized_chunk_path = await loop.run_in_executor(
-                        None, apply_optimization_chunk,
-                        wu.chunk_path, wu.clip_job.filter_type, wu.measured_params,
-                    )
-                else:
-                    wu.optimized_chunk_path = await loop.run_in_executor(
-                        None, apply_optimization,
-                        wu.chunk_path, wu.clip_job.filter_type,
-                        wu.clip_job.clip_name, wu.clip_job.clip_index,
-                        wu.clip_job.track_index,
-                    )
+                wu.optimized_chunk_path = await loop.run_in_executor(
+                    None, apply_optimization_chunk,
+                    wu.chunk_path, wu.clip_job.filter_type, wu.measured_params,
+                )
             await ffmpeg_queue.submit(_run)
 
         await asyncio.gather(*[_process_chunk(wu) for wu in all_chunks])
@@ -156,8 +147,8 @@ async def optimize_tracks(tracks: List[TrackOptimizationDTO]) -> Dict[str, Any]:
 
         for idx, cj in enumerate(clip_jobs):
             chunks_for_clip = chunk_map[idx]
-            if len(chunks_for_clip) == 1 and not chunks_for_clip[0].measured_params:
-                # Small clip, already fully optimized in step 3
+            if len(chunks_for_clip) == 1:
+                # Single clip (no split), already fully optimized in step 3
                 cj.optimized_path = chunks_for_clip[0].optimized_chunk_path
             else:
                 # Concat optimized chunks → final file
