@@ -142,6 +142,13 @@ export async function analyzeAudioTrack(trackIndex: number): Promise<AudioTrackI
       const projectItem = await trackItem.getProjectItem();
       const clipProjectItem = ppro.ClipProjectItem.cast(projectItem);
 
+      // Skip nested sequences (no source media file)
+      const isSeq = await clipProjectItem.isSequence();
+      if (isSeq) {
+        console.warn(`[WARN] Skipping nested sequence on track ${trackIndex}: ${clipName}`);
+        continue;
+      }
+
       // Get source file path
       const sourceFilePath = await clipProjectItem.getMediaFilePath();
 

@@ -159,6 +159,73 @@ export async function exportAudioSegment(
 }
 
 // ========================================
+// SEQUENCE EXPORT
+// ========================================
+
+/**
+ * Export the active sequence's full audio mix via PPro's built-in encoder.
+ * Returns the native path of the exported WAV file.
+ *
+ * Unlike encodeFile (which exports a source file segment), this renders
+ * the sequence timeline — including nested sequences, transitions, and effects.
+ */
+export async function exportSequenceAudio(
+  sequence: any,
+  preset: PresetType = "whisper",
+): Promise<string> {
+  const presetPath = await getPresetPath(preset);
+  const dataFolder = await uxp.storage.localFileSystem.getDataFolder();
+  const outputName = `seq_export_${Date.now()}_${++_exportCounter}.wav`;
+  const outputPath = `${dataFolder.nativePath}/${outputName}`;
+
+  const EM = ppro.EncoderManager;
+  const manager = EM.getManager();
+
+  console.log(`[AME] exportSequenceAudio: ${outputPath}`);
+
+  const ok = await manager.exportSequence(
+    sequence,
+    EM.EXPORT_IMMEDIATELY,
+    outputPath,
+    presetPath,
+  );
+
+  if (!ok) {
+    throw new Error("exportSequence returned false — export failed");
+  }
+
+  // EXPORT_IMMEDIATELY is synchronous-ish but verify file exists with stability check
+  const TIMEOUT_MS = 60_000;
+  const deadline = Date.now() + TIMEOUT_MS;
+  const POLL_INTERVAL = 1_000;
+  const STABLE_THRESHOLD = 3;
+  let lastSize = -1;
+  let stableCount = 0;
+
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    try {
+      const entry = await dataFolder.getEntry(outputName);
+      const meta = await entry.getMetadata();
+      const size: number = meta.size ?? 0;
+
+      if (size > 0 && size === lastSize) {
+        stableCount++;
+        if (stableCount >= STABLE_THRESHOLD && size >= 1000) {
+          console.log(`[AME] exportSequenceAudio: stable at ${size} bytes`);
+          return outputPath;
+        }
+      } else {
+        stableCount = 0;
+        lastSize = size;
+      }
+    } catch { /* file not ready yet */ }
+  }
+
+  throw new Error(`exportSequenceAudio timeout (${TIMEOUT_MS / 1000}s)`);
+}
+
+// ========================================
 // CLEANUP
 // ========================================
 
